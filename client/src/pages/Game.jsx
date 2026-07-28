@@ -8,11 +8,11 @@ import GameScene from '../game/GameScene'
 import { useAuthStore } from '../stores/authStore'
 import { useGameStore } from '../stores/gameStore'
 
-function HealthBar({ value, max }) {
+function HealthBar({ value, max, tone = 'enemy' }) {
   const percentage = Math.max(0, (value / max) * 100)
 
   return (
-    <div className="health">
+    <div className={`health health--${tone}`}>
       <div className="health__copy">
         <span>Vitalidad</span>
         <strong>{value} / {max}</strong>
@@ -52,9 +52,12 @@ export default function Game() {
     isAttacking,
     isChangingEnemy,
     isSelectingZone,
+    isResting,
     updatingItemId,
     message,
     lastHit,
+    lastCounter,
+    playerDefeated,
     rewards,
     canAdvance,
     zoneComplete,
@@ -62,6 +65,8 @@ export default function Game() {
     impactKey,
     loadGame,
     useSkill,
+    rest,
+    useItem,
     advanceEnemy,
     selectZone,
     equipItem,
@@ -74,6 +79,8 @@ export default function Game() {
   }, [loadGame, token])
 
   const enemyDefeated = enemy.health <= 0
+  const shouldRest =
+    playerDefeated || character.health < character.maxHealth * 0.5
   const sessionLogout = () => {
     logout()
     window.setTimeout(loadGame, 0)
@@ -126,8 +133,23 @@ export default function Game() {
               <HealthBar value={enemy.health} max={enemy.maxHealth} />
               <div className="enemy-stats">
                 <span>DEF {enemy.defense ?? 0}</span>
-                <span>ATQ {enemy.power ?? 0}</span>
+                <span>ATQ {enemy.attack ?? enemy.power ?? 0}</span>
               </div>
+            </div>
+
+            <div className={`player-health-card panel ${playerDefeated ? 'defeated' : ''}`}>
+              <div className="player-health-card__head">
+                <span className="eyebrow">Vida del aventurero</span>
+                <strong>{playerDefeated ? 'DERROTADO' : character.name}</strong>
+              </div>
+              <HealthBar
+                value={character.health}
+                max={character.maxHealth}
+                tone="player"
+              />
+              <small>
+                DEF {character.defense} · EVA {Math.round(character.evasion * 100)}%
+              </small>
             </div>
 
             {lastHit && (
@@ -138,28 +160,57 @@ export default function Game() {
               </div>
             )}
 
+            {lastCounter && (
+              <div
+                key={lastCounter.id}
+                className={`floating-counter ${lastCounter.evaded ? 'evaded' : ''}`}
+              >
+                {lastCounter.evaded ? (
+                  <strong>ESQUIVASTE</strong>
+                ) : (
+                  <>
+                    <small>DAÑO RECIBIDO</small>
+                    <strong>−{lastCounter.damage}</strong>
+                  </>
+                )}
+              </div>
+            )}
+
             <RewardBanner rewards={rewards} />
 
             <div className="battle-controls">
-              <p>{message}</p>
-              {enemyDefeated && canAdvance ? (
-                <button
-                  className="attack-button next-button"
-                  type="button"
-                  onClick={advanceEnemy}
-                  disabled={isChangingEnemy}
-                >
-                  <span>➜</span>
-                  {isChangingEnemy
-                    ? 'Rastreando...'
-                    : 'Siguiente enemigo'}
-                </button>
-              ) : enemyDefeated && zoneComplete ? (
-                <div className="zone-complete-callout">
-                  <span>✦</span>
-                  Zona completada · Selecciona la siguiente ruta en el mapa
-                </div>
-              ) : null}
+              <p className={playerDefeated ? 'defeat-message' : ''}>{message}</p>
+              <div className="battle-actions">
+                {enemyDefeated && canAdvance ? (
+                  <button
+                    className="attack-button next-button"
+                    type="button"
+                    onClick={advanceEnemy}
+                    disabled={isChangingEnemy}
+                  >
+                    <span>➜</span>
+                    {isChangingEnemy
+                      ? 'Rastreando...'
+                      : 'Siguiente enemigo'}
+                  </button>
+                ) : enemyDefeated && zoneComplete ? (
+                  <div className="zone-complete-callout">
+                    <span>✦</span>
+                    Zona completada · Selecciona la siguiente ruta en el mapa
+                  </div>
+                ) : null}
+                {shouldRest && (
+                  <button
+                    className="rest-button"
+                    type="button"
+                    onClick={rest}
+                    disabled={isResting}
+                  >
+                    <span>⌂</span>
+                    {isResting ? 'Descansando...' : 'Descansar'}
+                  </button>
+                )}
+              </div>
             </div>
           </div>
 
@@ -185,6 +236,7 @@ export default function Game() {
           <EquipmentPanel
             equipment={equipment}
             onUnequip={unequipItem}
+            onUse={useItem}
             updatingItemId={updatingItemId}
           />
           <Inventory

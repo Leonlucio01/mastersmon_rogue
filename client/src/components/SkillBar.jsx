@@ -39,8 +39,9 @@ export default function SkillBar({
           const noEnergy = character.energy < skill.energyCost
           const coolingDown = skill.cooldownRemaining > 0
           const locked = character.level < skill.requiredLevel
+          const playerDefeated = character.health <= 0
           const disabled =
-            isAttacking || noEnergy || coolingDown || locked
+            isAttacking || noEnergy || coolingDown || locked || playerDefeated
 
           return (
             <button

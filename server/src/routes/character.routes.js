@@ -1,5 +1,6 @@
 import { Router } from 'express'
 import { character } from '../data/mockData.js'
+import { prisma } from '../lib/prisma.js'
 import { getRequestCharacter } from '../services/gameData.js'
 import { serializeCharacter } from '../utils/serializers.js'
 
@@ -13,6 +14,29 @@ router.get('/me', async (request, response) => {
   } catch (error) {
     console.warn('Character fallback activo:', error.message)
     response.json(character)
+  }
+})
+
+router.post('/rest', async (request, response, next) => {
+  try {
+    const currentCharacter = await getRequestCharacter(request.user?.id)
+    if (!currentCharacter) {
+      return response.status(404).json({ error: 'No existe un personaje activo.' })
+    }
+
+    const restedCharacter = await prisma.character.update({
+      where: { id: currentCharacter.id },
+      data: { health: currentCharacter.maxHealth },
+    })
+
+    response.json({
+      character: serializeCharacter(restedCharacter),
+      healedAmount: currentCharacter.maxHealth - currentCharacter.health,
+      message: `${currentCharacter.name} ha descansado y recuperó toda su vida.`,
+      persistence: 'database',
+    })
+  } catch (error) {
+    next(error)
   }
 })
 

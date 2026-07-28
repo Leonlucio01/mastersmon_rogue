@@ -55,7 +55,13 @@ function ItemBonuses({ bonuses = {} }) {
   )
 }
 
-export default function Inventory({ items, onEquip, onUnequip, updatingItemId }) {
+export default function Inventory({
+  items,
+  onEquip,
+  onUnequip,
+  onUse,
+  updatingItemId,
+}) {
   return (
     <aside className="inventory panel">
       <div className="panel-title">
@@ -71,6 +77,7 @@ export default function Inventory({ items, onEquip, onUnequip, updatingItemId })
           const itemType = item.itemType ?? item.type?.toLowerCase()
           const rarity = item.rarity ?? 'common'
           const equipable = equipableTypes.has(itemType)
+          const consumable = itemType === 'consumable'
           const isUpdating = updatingItemId === item.inventoryItemId
 
           return (
@@ -88,18 +95,24 @@ export default function Inventory({ items, onEquip, onUnequip, updatingItemId })
                 </div>
                 <ItemBonuses bonuses={item.bonuses} />
               </div>
-              {equipable && (
+              {(equipable || consumable) && (
                 <button
-                  className={`item-action ${item.equipped ? 'unequip' : ''}`}
+                  className={`item-action ${item.equipped ? 'unequip' : ''} ${consumable ? 'consume' : ''}`}
                   type="button"
                   onClick={() =>
-                    item.equipped
+                    consumable
+                      ? onUse(item.inventoryItemId)
+                      : item.equipped
                       ? onUnequip(item.inventoryItemId)
                       : onEquip(item.inventoryItemId)
                   }
-                  disabled={isUpdating}
+                  disabled={isUpdating || (consumable && item.quantity <= 0)}
                 >
-                  {isUpdating ? '...' : item.equipped ? 'Quitar' : 'Equipar'}
+                  {isUpdating
+                    ? '...'
+                    : consumable
+                      ? item.quantity > 0 ? 'Usar poción' : 'Agotado'
+                      : item.equipped ? 'Quitar' : 'Equipar'}
                 </button>
               )}
             </article>

@@ -9,9 +9,11 @@ import {
   getMapZones,
   getSkills,
   nextMapMonster,
+  restCharacter,
   selectMapZone,
   unequipItem as unequipItemRequest,
   useBattleSkill,
+  useInventoryItem,
 } from '../services/api'
 
 const fallbackCharacter = {
@@ -31,7 +33,7 @@ const fallbackCharacter = {
 }
 
 const fallbackInventory = [
-  { inventoryItemId: 'demo-potion', id: 'potion', name: 'Poción menor', quantity: 3, type: 'CONSUMABLE', itemType: 'consumable', rarity: 'common', equipped: false, bonuses: {} },
+  { inventoryItemId: 'demo-potion', id: 'potion', name: 'Poción menor', quantity: 3, type: 'CONSUMABLE', itemType: 'consumable', rarity: 'common', equipped: false, healAmount: 25, bonuses: {} },
   { inventoryItemId: 'demo-sword', id: 'sword', name: 'Espada de aprendiz', quantity: 1, type: 'WEAPON', itemType: 'weapon', rarity: 'common', equipped: true, slot: 'weapon', bonuses: { attack: 5, power: 5 } },
   { inventoryItemId: 'demo-herb', id: 'herb', name: 'Hierba lunar', quantity: 4, type: 'MATERIAL', itemType: 'material', rarity: 'common', equipped: false, bonuses: {} },
 ]
@@ -137,6 +139,15 @@ function combatUpdate(result, state) {
           id: Date.now(),
         }
       : null,
+    lastCounter:
+      result.enemyDamage > 0 || result.playerEvaded
+        ? {
+            damage: result.enemyDamage,
+            evaded: result.playerEvaded,
+            id: Date.now() + 1,
+          }
+        : null,
+    playerDefeated: Boolean(result.playerDefeated),
     rewards: result.rewards,
     canAdvance: Boolean(result.canAdvance),
     zoneComplete: Boolean(result.zoneComplete),
@@ -178,9 +189,12 @@ export const useGameStore = create((set, get) => ({
   isAttacking: false,
   isChangingEnemy: false,
   isSelectingZone: false,
+  isResting: false,
   updatingItemId: null,
   message: 'Preparando la expedición...',
   lastHit: null,
+  lastCounter: null,
+  playerDefeated: false,
   rewards: null,
   canAdvance: false,
   zoneComplete: false,
@@ -188,7 +202,13 @@ export const useGameStore = create((set, get) => ({
   impactKey: 0,
 
   loadGame: async () => {
-    set({ isLoading: true, rewards: null, lastHit: null, unlockNotice: '' })
+    set({
+      isLoading: true,
+      rewards: null,
+      lastHit: null,
+      lastCounter: null,
+      unlockNotice: '',
+    })
 
     try {
       await getHealth()
@@ -215,6 +235,8 @@ export const useGameStore = create((set, get) => ({
         persistence: current.persistence,
         canAdvance: current.enemy.health <= 0 && !current.enemy.isBoss,
         zoneComplete: current.enemy.health <= 0 && current.enemy.isBoss,
+        playerDefeated:
+          (equipmentResponse.data.character ?? characterResponse.data).health <= 0,
         serverOnline: true,
         message: `${current.enemy.name} bloquea el avance por ${current.zone.name}.`,
       })
@@ -230,6 +252,7 @@ export const useGameStore = create((set, get) => ({
         currentZone: fallbackZone,
         progress: fallbackProgress,
         persistence: 'mock',
+        playerDefeated: false,
         serverOnline: false,
         message: 'Modo local: inicia el backend para sincronizar la partida.',
       })
@@ -239,8 +262,8 @@ export const useGameStore = create((set, get) => ({
   },
 
   attack: async () => {
-    const { enemy, isAttacking } = get()
-    if (isAttacking || enemy.health <= 0) return
+    const { enemy, isAttacking, character } = get()
+    if (isAttacking || enemy.health <= 0 || character.health <= 0) return
 
     set({
       isAttacking: true,
@@ -275,6 +298,7 @@ export const useGameStore = create((set, get) => ({
       enemy.health <= 0 ||
       skill.cooldownRemaining > 0 ||
       character.energy < skill.energyCost
+      || character.health <= 0
     ) return
 
     set({
@@ -295,6 +319,51 @@ export const useGameStore = create((set, get) => ({
       })
     } finally {
       window.setTimeout(() => set({ isAttacking: false }), 520)
+    }
+  },
+
+  rest: async () => {
+    if (get().isResting) return
+    set({ isResting: true, message: 'Preparando un refugio seguro...' })
+    try {
+      const response = await restCharacter()
+      set({
+        character: response.data.character,
+        playerDefeated: false,
+        lastCounter: null,
+        message: response.data.message,
+      })
+    } catch (error) {
+      set({
+        message:
+          error.response?.data?.error ?? 'No fue posible descansar.',
+      })
+    } finally {
+      set({ isResting: false })
+    }
+  },
+
+  useItem: async (inventoryItemId) => {
+    if (get().updatingItemId) return
+    set({
+      updatingItemId: inventoryItemId,
+      message: 'Usando el consumible...',
+    })
+    try {
+      const response = await useInventoryItem(inventoryItemId)
+      set({
+        character: response.data.character,
+        inventory: response.data.inventory,
+        playerDefeated: response.data.character.health <= 0,
+        message: response.data.message,
+      })
+    } catch (error) {
+      set({
+        message:
+          error.response?.data?.error ?? 'No fue posible usar el consumible.',
+      })
+    } finally {
+      set({ updatingItemId: null })
     }
   },
 

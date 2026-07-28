@@ -20,6 +20,11 @@ export default function Hud({ character, isAuthenticated, onLogin, onLogout }) {
         <Stat label="Oro" value={character.gold} tone="gold" />
         <Stat label="Gemas" value={character.gems} tone="gem" />
         <Stat
+          label="Vida"
+          value={`${character.health}/${character.maxHealth}`}
+          tone="health"
+        />
+        <Stat
           label="Energía"
           value={`${character.energy}/${character.maxEnergy}`}
           tone="energy"

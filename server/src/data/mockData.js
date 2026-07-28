@@ -48,6 +48,8 @@ export const battle = {
     name: 'Slime musgoso',
     maxHealth: 45,
     health: 45,
+    attack: 6,
+    power: 6,
     defense: 2,
     level: 1,
   },

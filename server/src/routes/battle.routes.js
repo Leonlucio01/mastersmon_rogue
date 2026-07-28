@@ -22,6 +22,16 @@ function mockAttack() {
   const damage = Math.round(baseDamage * (wasCritical ? 1.5 : 1))
   battle.enemy.health = Math.max(0, battle.enemy.health - damage)
   const defeated = battle.enemy.health === 0
+  const playerEvaded = !defeated && Math.random() < mockCharacter.evasion
+  const enemyDamage =
+    defeated || playerEvaded
+      ? 0
+      : Math.max(
+          1,
+          (battle.enemy.attack ?? battle.enemy.power) - mockCharacter.defense,
+        )
+  mockCharacter.health = Math.max(0, mockCharacter.health - enemyDamage)
+  const playerDefeated = mockCharacter.health === 0
 
   if (defeated) {
     mockCharacter.gold += 12
@@ -31,6 +41,9 @@ function mockAttack() {
   return {
     damage,
     wasCritical,
+    enemyDamage,
+    playerEvaded,
+    playerDefeated,
     defeated,
     enemy: { ...battle.enemy },
     character: mockCharacter,
@@ -59,6 +72,7 @@ async function performAction(request, response, skillId) {
         error: error.message,
         canAdvance: Boolean(error.canAdvance),
         zoneComplete: Boolean(error.zoneComplete),
+        playerDefeated: Boolean(error.playerDefeated),
       })
     }
 

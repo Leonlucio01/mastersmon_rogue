@@ -29,7 +29,7 @@ async function updateSkillTurns(characterSkills, usedCharacterSkill, transaction
           : Math.max(0, entry.cooldownRemaining - 1),
         activeTurns:
           isUsed && entry.skill.skillType === 'BUFF'
-            ? entry.skill.durationTurns
+            ? Math.max(0, entry.skill.durationTurns - 1)
             : Math.max(0, entry.activeTurns - 1),
       },
       include: { skill: true },
@@ -42,6 +42,14 @@ async function updateSkillTurns(characterSkills, usedCharacterSkill, transaction
 export async function executeCombatAction(character, skillId) {
   const state = await getCurrentMapState(character)
   const monster = state.monster
+
+  if (character.health <= 0) {
+    throw combatError(
+      'Has sido derrotado. Descansa o usa un consumible antes de continuar.',
+      409,
+      { playerDefeated: true },
+    )
+  }
 
   if (state.progress.currentMonsterHealth <= 0) {
     throw combatError(
@@ -109,6 +117,38 @@ export async function executeCombatAction(character, skillId) {
     defeated && monster.dropItem && Math.random() < monster.dropChance
       ? monster.dropItem
       : null
+  const activeEvasionBonus = characterSkills.reduce(
+    (total, entry) =>
+      total +
+      (entry.activeTurns > 0 && entry.skill.evasionBonus > 0
+        ? entry.skill.evasionBonus
+        : 0),
+    0,
+  )
+  const selectedEvasionBonus = isBuff ? selected.skill.evasionBonus : 0
+  const evasionChance = Math.min(
+    0.95,
+    Math.max(0, character.evasion + activeEvasionBonus + selectedEvasionBonus),
+  )
+  const playerEvaded = !defeated && Math.random() < evasionChance
+  const monsterAttack = monster.attack ?? monster.power
+  const enemyDamage =
+    defeated || playerEvaded
+      ? 0
+      : Math.max(1, monsterAttack - character.defense)
+  const remainingPlayerHealth = Math.max(0, character.health - enemyDamage)
+  const playerDefeated = remainingPlayerHealth === 0
+  const battleResult = playerDefeated
+    ? 'PLAYER_DEFEATED'
+    : defeated
+      ? monster.isBoss
+        ? 'BOSS_VICTORY'
+        : 'VICTORY'
+      : playerEvaded
+        ? 'EVADED'
+        : isBuff
+          ? 'BUFF'
+          : 'HIT'
 
   const result = await prisma.$transaction(async (transaction) => {
     const progress = await transaction.characterProgress.update({
@@ -129,6 +169,7 @@ export async function executeCombatAction(character, skillId) {
       where: { id: character.id },
       data: {
         energy: { decrement: selected.skill.energyCost },
+        health: remainingPlayerHealth,
         ...(defeated
           ? {
               gold: { increment: monster.rewardGold },
@@ -168,18 +209,15 @@ export async function executeCombatAction(character, skillId) {
         skillId: selected.skill.id,
         skillName: selected.skill.name,
         damage,
+        enemyDamage,
         wasCritical,
+        playerEvaded,
+        playerDefeated,
         monsterDefeated: defeated,
         goldReward: defeated ? monster.rewardGold : 0,
         expReward: defeated ? monster.rewardExp : 0,
         droppedItemId: droppedItem?.id,
-        result: isBuff
-          ? 'BUFF'
-          : defeated
-            ? monster.isBoss
-              ? 'BOSS_VICTORY'
-              : 'VICTORY'
-            : 'HIT',
+        result: battleResult,
       },
     })
 
@@ -224,13 +262,21 @@ export async function executeCombatAction(character, skillId) {
     }
   })
 
-  const message = isBuff
-    ? `${character.name} activa ${selected.skill.name}: evasión aumentada durante ${selected.skill.durationTurns} turnos.`
+  const actionMessage = isBuff
+    ? `${character.name} activa ${selected.skill.name}.`
     : defeated
       ? monster.isBoss
         ? `${monster.name} cayó ante ${selected.skill.name}. La zona ha sido conquistada.`
         : `${monster.name} ha sido derrotado con ${selected.skill.name}.`
       : `${character.name} usa ${selected.skill.name} contra ${monster.name}.`
+  const counterMessage = defeated
+    ? ''
+    : playerEvaded
+      ? ' Esquivaste el contraataque.'
+      : playerDefeated
+        ? ` ${monster.name} inflige ${enemyDamage} de daño. Has sido derrotado.`
+        : ` ${monster.name} contraataca e inflige ${enemyDamage} de daño.`
+  const message = `${actionMessage}${counterMessage}`
 
   return {
     skill: serializeCharacterSkill(
@@ -239,7 +285,11 @@ export async function executeCombatAction(character, skillId) {
     skills: result.updatedSkills.map(serializeCharacterSkill),
     activeEffects: getActiveEffects(result.updatedSkills),
     damage,
+    enemyDamage,
     wasCritical,
+    playerEvaded,
+    playerDefeated,
+    evasionChance,
     defeated,
     enemy: serializeMonster({ ...monster, health: remainingHealth }),
     character: serializeCharacter(result.updatedCharacter),

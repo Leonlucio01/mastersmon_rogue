@@ -20,6 +20,8 @@ api.interceptors.request.use((config) => {
 export const getHealth = () => api.get('/health')
 export const getCharacter = () => api.get('/character/me')
 export const getInventory = () => api.get('/inventory')
+export const useInventoryItem = (inventoryItemId) =>
+  api.post('/inventory/use', { inventoryItemId })
 export const getEquipment = () => api.get('/equipment')
 export const equipItem = (inventoryItemId) =>
   api.post('/equipment/equip', { inventoryItemId })
@@ -38,5 +40,6 @@ export const nextMapMonster = () => api.post('/map/next-monster')
 export const registerUser = (data) => api.post('/auth/register', data)
 export const loginUser = (data) => api.post('/auth/login', data)
 export const getCurrentUser = () => api.get('/auth/me')
+export const restCharacter = () => api.post('/character/rest')
 
 export default api

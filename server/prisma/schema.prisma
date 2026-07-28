@@ -141,6 +141,7 @@ model Item {
   evasionBonus Float           @default(0)
   agilityBonus Int             @default(0)
   powerBonus   Int             @default(0)
+  healAmount   Int             @default(0)
   inventory    InventoryItem[]
   monsterDrops Monster[]       @relation("MonsterDrop")
   battleDrops  BattleLog[]     @relation("BattleDrop")
@@ -187,6 +188,7 @@ model Monster {
   level      Int         @default(1)
   health     Int
   maxHealth  Int
+  attack     Int         @default(1)
   power      Int
   defense    Int         @default(0)
   rewardGold Int         @default(0)
@@ -229,7 +231,10 @@ model BattleLog {
   monsterId       String
   monster         Monster   @relation(fields: [monsterId], references: [id], onDelete: Cascade)
   damage          Int
+  enemyDamage     Int       @default(0)
   wasCritical     Boolean   @default(false)
+  playerEvaded    Boolean   @default(false)
+  playerDefeated  Boolean   @default(false)
   monsterDefeated Boolean   @default(false)
   goldReward      Int       @default(0)
   expReward       Int       @default(0)

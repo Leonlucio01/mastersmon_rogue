@@ -44,6 +44,7 @@ export function serializeInventory(items) {
     rarity: item.rarity.toLowerCase(),
     value: item.value,
     power: item.power,
+    healAmount: item.healAmount,
     bonuses: {
       attack: item.attackBonus,
       defense: item.defenseBonus,
@@ -69,6 +70,7 @@ export function serializeMonster(monster) {
     level: monster.level,
     health: monster.health,
     maxHealth: monster.maxHealth,
+    attack: monster.attack ?? monster.power,
     power: monster.power,
     defense: monster.defense,
     order: monster.sortOrder,
