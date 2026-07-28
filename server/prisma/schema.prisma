@@ -1,0 +1,113 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum ItemType {
+  WEAPON
+  ARMOR
+  CONSUMABLE
+  MATERIAL
+  QUEST
+}
+
+model User {
+  id        String     @id @default(cuid())
+  email     String     @unique
+  name      String
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  character Character?
+}
+
+model Character {
+  id             String          @id @default(cuid())
+  name           String
+  level          Int             @default(1)
+  experience     Int             @default(0)
+  gold           Int             @default(0)
+  gems           Int             @default(0)
+  health         Int             @default(100)
+  maxHealth      Int             @default(100)
+  energy         Int             @default(100)
+  maxEnergy      Int             @default(100)
+  power          Int             @default(10)
+  userId         String          @unique
+  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  zoneId         String?
+  zone           Zone?           @relation(fields: [zoneId], references: [id])
+  inventoryItems InventoryItem[]
+  battleLogs     BattleLog[]
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+}
+
+model Item {
+  id          String          @id @default(cuid())
+  name        String          @unique
+  description String
+  type        ItemType
+  value       Int             @default(0)
+  power       Int             @default(0)
+  inventory   InventoryItem[]
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+}
+
+model InventoryItem {
+  id          String    @id @default(cuid())
+  quantity    Int       @default(1)
+  equipped    Boolean   @default(false)
+  characterId String
+  character   Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  itemId      String
+  item        Item      @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([characterId, itemId])
+}
+
+model Zone {
+  id          String      @id @default(cuid())
+  name        String      @unique
+  description String
+  level       Int         @default(1)
+  characters  Character[]
+  monsters    Monster[]
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+}
+
+model Monster {
+  id         String      @id @default(cuid())
+  name       String
+  species    String
+  level      Int         @default(1)
+  health     Int
+  maxHealth  Int
+  power      Int
+  rewardGold Int         @default(0)
+  zoneId     String
+  zone       Zone        @relation(fields: [zoneId], references: [id], onDelete: Cascade)
+  battleLogs BattleLog[]
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+
+  @@unique([name, zoneId])
+}
+
+model BattleLog {
+  id          String    @id @default(cuid())
+  characterId String
+  character   Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  monsterId   String
+  monster     Monster   @relation(fields: [monsterId], references: [id], onDelete: Cascade)
+  damage      Int
+  result      String
+  createdAt   DateTime  @default(now())
+}
