@@ -6,13 +6,13 @@ const Stat = ({ label, value, tone }) => (
   </div>
 )
 
-export default function Hud({ character }) {
+export default function Hud({ character, isAuthenticated, onLogin, onLogout }) {
   return (
     <header className="hud">
       <div className="player-badge">
         <span className="player-badge__mark">M</span>
         <div>
-          <span className="eyebrow">Explorador · Nv. {character.level}</span>
+          <span className="eyebrow">{character.class ?? 'Explorador'} · Nv. {character.level}</span>
           <strong>{character.name}</strong>
         </div>
       </div>
@@ -25,6 +25,12 @@ export default function Hud({ character }) {
           tone="energy"
         />
         <Stat label="Poder" value={character.power} tone="power" />
+      </div>
+      <div className="hud-account">
+        <span>{character.experience} EXP</span>
+        <button type="button" onClick={isAuthenticated ? onLogout : onLogin}>
+          {isAuthenticated ? 'Cerrar sesión' : 'Iniciar sesión'}
+        </button>
       </div>
     </header>
   )

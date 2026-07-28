@@ -16,17 +16,19 @@ enum ItemType {
 }
 
 model User {
-  id        String     @id @default(cuid())
-  email     String     @unique
-  name      String
-  createdAt DateTime   @default(now())
-  updatedAt DateTime   @updatedAt
-  character Character?
+  id           String     @id @default(cuid())
+  email        String     @unique
+  name         String
+  passwordHash String?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  character    Character?
 }
 
 model Character {
   id             String          @id @default(cuid())
   name           String
+  characterClass String          @default("Vanguardia")
   level          Int             @default(1)
   experience     Int             @default(0)
   gold           Int             @default(0)
@@ -35,6 +37,11 @@ model Character {
   maxHealth      Int             @default(100)
   energy         Int             @default(100)
   maxEnergy      Int             @default(100)
+  attack         Int             @default(12)
+  defense        Int             @default(3)
+  critRate       Float           @default(0.1)
+  evasion        Float           @default(0.05)
+  agility        Int             @default(10)
   power          Int             @default(10)
   userId         String          @unique
   user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -47,15 +54,17 @@ model Character {
 }
 
 model Item {
-  id          String          @id @default(cuid())
-  name        String          @unique
-  description String
-  type        ItemType
-  value       Int             @default(0)
-  power       Int             @default(0)
-  inventory   InventoryItem[]
-  createdAt   DateTime        @default(now())
-  updatedAt   DateTime        @updatedAt
+  id           String          @id @default(cuid())
+  name         String          @unique
+  description  String
+  type         ItemType
+  value        Int             @default(0)
+  power        Int             @default(0)
+  inventory    InventoryItem[]
+  monsterDrops Monster[]       @relation("MonsterDrop")
+  battleDrops  BattleLog[]     @relation("BattleDrop")
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
 }
 
 model InventoryItem {
@@ -91,7 +100,13 @@ model Monster {
   health     Int
   maxHealth  Int
   power      Int
+  defense    Int         @default(0)
   rewardGold Int         @default(0)
+  rewardExp  Int         @default(0)
+  dropChance Float       @default(0)
+  sortOrder  Int         @default(0)
+  dropItemId String?
+  dropItem   Item?       @relation("MonsterDrop", fields: [dropItemId], references: [id], onDelete: SetNull)
   zoneId     String
   zone       Zone        @relation(fields: [zoneId], references: [id], onDelete: Cascade)
   battleLogs BattleLog[]
@@ -102,12 +117,18 @@ model Monster {
 }
 
 model BattleLog {
-  id          String    @id @default(cuid())
-  characterId String
-  character   Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
-  monsterId   String
-  monster     Monster   @relation(fields: [monsterId], references: [id], onDelete: Cascade)
-  damage      Int
-  result      String
-  createdAt   DateTime  @default(now())
+  id              String    @id @default(cuid())
+  characterId     String
+  character       Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  monsterId       String
+  monster         Monster   @relation(fields: [monsterId], references: [id], onDelete: Cascade)
+  damage          Int
+  wasCritical     Boolean   @default(false)
+  monsterDefeated Boolean   @default(false)
+  goldReward      Int       @default(0)
+  expReward       Int       @default(0)
+  droppedItemId   String?
+  droppedItem     Item?     @relation("BattleDrop", fields: [droppedItemId], references: [id], onDelete: SetNull)
+  result          String
+  createdAt       DateTime  @default(now())
 }

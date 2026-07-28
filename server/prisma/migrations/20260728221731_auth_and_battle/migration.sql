@@ -1,0 +1,30 @@
+-- AlterTable
+ALTER TABLE "BattleLog" ADD COLUMN     "droppedItemId" TEXT,
+ADD COLUMN     "expReward" INTEGER NOT NULL DEFAULT 0,
+ADD COLUMN     "goldReward" INTEGER NOT NULL DEFAULT 0,
+ADD COLUMN     "monsterDefeated" BOOLEAN NOT NULL DEFAULT false,
+ADD COLUMN     "wasCritical" BOOLEAN NOT NULL DEFAULT false;
+
+-- AlterTable
+ALTER TABLE "Character" ADD COLUMN     "agility" INTEGER NOT NULL DEFAULT 10,
+ADD COLUMN     "attack" INTEGER NOT NULL DEFAULT 12,
+ADD COLUMN     "characterClass" TEXT NOT NULL DEFAULT 'Vanguardia',
+ADD COLUMN     "critRate" DOUBLE PRECISION NOT NULL DEFAULT 0.1,
+ADD COLUMN     "defense" INTEGER NOT NULL DEFAULT 3,
+ADD COLUMN     "evasion" DOUBLE PRECISION NOT NULL DEFAULT 0.05;
+
+-- AlterTable
+ALTER TABLE "Monster" ADD COLUMN     "defense" INTEGER NOT NULL DEFAULT 0,
+ADD COLUMN     "dropChance" DOUBLE PRECISION NOT NULL DEFAULT 0,
+ADD COLUMN     "dropItemId" TEXT,
+ADD COLUMN     "rewardExp" INTEGER NOT NULL DEFAULT 0,
+ADD COLUMN     "sortOrder" INTEGER NOT NULL DEFAULT 0;
+
+-- AlterTable
+ALTER TABLE "User" ADD COLUMN     "passwordHash" TEXT;
+
+-- AddForeignKey
+ALTER TABLE "Monster" ADD CONSTRAINT "Monster_dropItemId_fkey" FOREIGN KEY ("dropItemId") REFERENCES "Item"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "BattleLog" ADD CONSTRAINT "BattleLog_droppedItemId_fkey" FOREIGN KEY ("droppedItemId") REFERENCES "Item"("id") ON DELETE SET NULL ON UPDATE CASCADE;

@@ -1,6 +1,8 @@
 import 'dotenv/config'
 import cors from 'cors'
 import express from 'express'
+import { optionalAuth } from './middleware/auth.js'
+import authRoutes from './routes/auth.routes.js'
 import battleRoutes from './routes/battle.routes.js'
 import characterRoutes from './routes/character.routes.js'
 import healthRoutes from './routes/health.routes.js'
@@ -16,8 +18,10 @@ app.use(
   }),
 )
 app.use(express.json())
+app.use(optionalAuth)
 
 app.use('/api/health', healthRoutes)
+app.use('/api/auth', authRoutes)
 app.use('/api/character', characterRoutes)
 app.use('/api/inventory', inventoryRoutes)
 app.use('/api/battle', battleRoutes)

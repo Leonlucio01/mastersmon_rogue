@@ -1,12 +1,18 @@
 export const character = {
   id: 'demo-character',
   name: 'Kael',
+  class: 'Vanguardia',
   level: 1,
   experience: 0,
   gold: 125,
   gems: 8,
   energy: 74,
   maxEnergy: 100,
+  attack: 18,
+  defense: 4,
+  critRate: 0.1,
+  evasion: 0.05,
+  agility: 11,
   power: 18,
   health: 100,
   maxHealth: 100,
@@ -42,6 +48,8 @@ export const battle = {
     name: 'Slime musgoso',
     maxHealth: 45,
     health: 45,
+    defense: 2,
+    level: 1,
   },
 }
 
