@@ -124,6 +124,7 @@ const fallbackSkills = [
 ]
 
 function combatUpdate(result, state) {
+  const skillName = result.skillName ?? result.skill?.name ?? state.activeSkillName
   return {
     enemy: result.enemy,
     character: result.character ?? state.character,
@@ -135,7 +136,7 @@ function combatUpdate(result, state) {
       ? {
           damage: result.damage,
           wasCritical: result.wasCritical,
-          skillName: result.skill?.name,
+          skillName,
           id: Date.now(),
         }
       : null,
@@ -148,6 +149,19 @@ function combatUpdate(result, state) {
           }
         : null,
     playerDefeated: Boolean(result.playerDefeated),
+    combatEvent: {
+      skillName,
+      damage: result.damage ?? 0,
+      enemyDamage: result.enemyDamage ?? 0,
+      wasCritical: Boolean(result.wasCritical),
+      playerEvaded: Boolean(result.playerEvaded),
+      playerDefeated: Boolean(result.playerDefeated),
+      monsterDefeated: Boolean(
+        result.monsterDefeated ?? result.defeated,
+      ),
+      result: result.result,
+      id: Date.now() + 2,
+    },
     rewards: result.rewards,
     canAdvance: Boolean(result.canAdvance),
     zoneComplete: Boolean(result.zoneComplete),
@@ -195,6 +209,10 @@ export const useGameStore = create((set, get) => ({
   lastHit: null,
   lastCounter: null,
   playerDefeated: false,
+  activeSkillName: 'Ataque básico',
+  actionKey: 0,
+  combatEvent: null,
+  healEvent: null,
   rewards: null,
   canAdvance: false,
   zoneComplete: false,
@@ -207,6 +225,8 @@ export const useGameStore = create((set, get) => ({
       rewards: null,
       lastHit: null,
       lastCounter: null,
+      combatEvent: null,
+      healEvent: null,
       unlockNotice: '',
     })
 
@@ -265,12 +285,14 @@ export const useGameStore = create((set, get) => ({
     const { enemy, isAttacking, character } = get()
     if (isAttacking || enemy.health <= 0 || character.health <= 0) return
 
-    set({
+    set((state) => ({
       isAttacking: true,
+      activeSkillName: 'Ataque básico',
+      actionKey: state.actionKey + 1,
       message: 'El golpe atraviesa la bruma...',
       rewards: null,
       unlockNotice: '',
-    })
+    }))
 
     try {
       const response = await attackEnemy()
@@ -283,7 +305,7 @@ export const useGameStore = create((set, get) => ({
           'El ataque falló. Comprueba la conexión con el servidor.',
       })
     } finally {
-      window.setTimeout(() => set({ isAttacking: false }), 520)
+      window.setTimeout(() => set({ isAttacking: false }), 580)
     }
   },
 
@@ -301,12 +323,14 @@ export const useGameStore = create((set, get) => ({
       || character.health <= 0
     ) return
 
-    set({
+    set((state) => ({
       isAttacking: true,
+      activeSkillName: skill.name,
+      actionKey: state.actionKey + 1,
       message: `${skill.name} concentra su energía...`,
       rewards: null,
       unlockNotice: '',
-    })
+    }))
 
     try {
       const response = await useBattleSkill(skill.id)
@@ -318,7 +342,12 @@ export const useGameStore = create((set, get) => ({
           'La habilidad falló. Comprueba la conexión con el servidor.',
       })
     } finally {
-      window.setTimeout(() => set({ isAttacking: false }), 520)
+      const duration = skill.name === 'Golpe sombrío'
+        ? 760
+        : skill.name === 'Corte veloz'
+          ? 540
+          : 620
+      window.setTimeout(() => set({ isAttacking: false }), duration)
     }
   },
 
@@ -355,6 +384,11 @@ export const useGameStore = create((set, get) => ({
         character: response.data.character,
         inventory: response.data.inventory,
         playerDefeated: response.data.character.health <= 0,
+        healEvent: {
+          amount: response.data.healedAmount,
+          itemName: 'Poción menor',
+          id: Date.now(),
+        },
         message: response.data.message,
       })
     } catch (error) {

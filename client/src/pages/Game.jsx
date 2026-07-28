@@ -1,10 +1,16 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import Hud from '../components/Hud'
 import EquipmentPanel from '../components/EquipmentPanel'
 import Inventory from '../components/Inventory'
 import MapPanel from '../components/MapPanel'
 import SkillBar from '../components/SkillBar'
 import GameScene from '../game/GameScene'
+import {
+  isCombatSoundEnabled,
+  playCombatEvent,
+  playHealingSound,
+  setCombatSoundEnabled,
+} from '../services/combatAudio'
 import { useAuthStore } from '../stores/authStore'
 import { useGameStore } from '../stores/gameStore'
 
@@ -58,6 +64,10 @@ export default function Game() {
     lastHit,
     lastCounter,
     playerDefeated,
+    activeSkillName,
+    actionKey,
+    combatEvent,
+    healEvent,
     rewards,
     canAdvance,
     zoneComplete,
@@ -73,12 +83,29 @@ export default function Game() {
     unequipItem,
   } = useGameStore()
   const { token, logout, openAuth } = useAuthStore()
+  const [soundEnabled, setSoundEnabled] = useState(isCombatSoundEnabled)
 
   useEffect(() => {
     loadGame()
   }, [loadGame, token])
 
+  useEffect(() => {
+    playCombatEvent(combatEvent)
+  }, [combatEvent])
+
+  useEffect(() => {
+    if (healEvent) playHealingSound()
+  }, [healEvent])
+
   const enemyDefeated = enemy.health <= 0
+  const evasiveActive = activeEffects.some(
+    (effect) => effect.name === 'Paso evasivo' && effect.activeTurns > 0,
+  )
+  const actionClass = activeSkillName
+    ?.toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, '-')
   const shouldRest =
     playerDefeated || character.health < character.maxHealth * 0.5
   const sessionLogout = () => {
@@ -104,23 +131,64 @@ export default function Game() {
               </span>
               <h1>{currentZone.name}</h1>
             </div>
-            <span className={`server-status ${serverOnline ? 'online' : ''}`}>
-              <i />
-              {isLoading
-                ? 'Conectando'
-                : serverOnline
-                  ? persistence === 'database' ? 'PostgreSQL activo' : 'Servidor · demo'
-                  : 'Modo demo'}
-            </span>
+            <div className="world-status-actions">
+              <button
+                className={`sound-toggle ${soundEnabled ? 'enabled' : ''}`}
+                type="button"
+                onClick={() => {
+                  const next = !soundEnabled
+                  setCombatSoundEnabled(next)
+                  setSoundEnabled(next)
+                }}
+                aria-pressed={soundEnabled}
+                title="Activar o desactivar sonidos de combate"
+              >
+                {soundEnabled ? '♪ Sonido' : '♩ Silencio'}
+              </button>
+              <span className={`server-status ${serverOnline ? 'online' : ''}`}>
+                <i />
+                {isLoading
+                  ? 'Conectando'
+                  : serverOnline
+                    ? persistence === 'database' ? 'PostgreSQL activo' : 'Servidor · demo'
+                    : 'Modo demo'}
+              </span>
+            </div>
           </div>
 
-          <div className={`scene-wrap ${isAttacking ? 'is-attacking' : ''}`}>
+          <div
+            className={[
+              'scene-wrap',
+              isAttacking ? 'is-attacking' : '',
+              `action-${actionClass}`,
+              playerDefeated ? 'player-is-defeated' : '',
+              enemyDefeated ? 'enemy-is-defeated' : '',
+              evasiveActive ? 'evasive-active' : '',
+            ].filter(Boolean).join(' ')}
+          >
             <GameScene
               enemyDefeated={enemyDefeated}
+              playerDefeated={playerDefeated}
               isAttacking={isAttacking}
+              actionSkill={activeSkillName}
+              actionKey={actionKey}
               impactKey={impactKey}
               enemyName={enemy.name}
+              lastHit={lastHit}
+              lastCounter={lastCounter}
+              evasiveActive={evasiveActive}
             />
+
+            {lastHit?.wasCritical && (
+              <div key={`critical-${lastHit.id}`} className="critical-flash" />
+            )}
+
+            {evasiveActive && (
+              <div className="scene-buff-indicator">
+                <span>◇</span>
+                Paso evasivo activo
+              </div>
+            )}
 
             <div className="enemy-card panel">
               <div className="enemy-card__head">
@@ -176,7 +244,22 @@ export default function Game() {
               </div>
             )}
 
+            {healEvent && (
+              <div key={healEvent.id} className="floating-heal">
+                <small>{healEvent.itemName}</small>
+                <strong>+{healEvent.amount} HP</strong>
+              </div>
+            )}
+
             <RewardBanner rewards={rewards} />
+
+            {playerDefeated && (
+              <div className="defeat-overlay">
+                <span>☠</span>
+                <strong>HAS SIDO DERROTADO</strong>
+                <small>Descansa o usa una poción para volver al combate</small>
+              </div>
+            )}
 
             <div className="battle-controls">
               <p className={playerDefeated ? 'defeat-message' : ''}>{message}</p>
@@ -236,13 +319,13 @@ export default function Game() {
           <EquipmentPanel
             equipment={equipment}
             onUnequip={unequipItem}
-            onUse={useItem}
             updatingItemId={updatingItemId}
           />
           <Inventory
             items={inventory}
             onEquip={equipItem}
             onUnequip={unequipItem}
+            onUse={useItem}
             updatingItemId={updatingItemId}
           />
           <section className="panel mission-card">

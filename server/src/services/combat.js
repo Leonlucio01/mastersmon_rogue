@@ -279,6 +279,7 @@ export async function executeCombatAction(character, skillId) {
   const message = `${actionMessage}${counterMessage}`
 
   return {
+    skillName: selected.skill.name,
     skill: serializeCharacterSkill(
       result.updatedSkills.find(({ id }) => id === selected.id),
     ),
@@ -289,6 +290,9 @@ export async function executeCombatAction(character, skillId) {
     wasCritical,
     playerEvaded,
     playerDefeated,
+    monsterDefeated: defeated,
+    healedAmount: 0,
+    result: battleResult,
     evasionChance,
     defeated,
     enemy: serializeMonster({ ...monster, health: remainingHealth }),

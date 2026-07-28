@@ -76,7 +76,15 @@ router.post('/use', async (request, response, next) => {
     response.json({
       character: serializeCharacter(result.updatedCharacter),
       inventory: serializeInventory(result.updatedInventory),
+      skillName: null,
+      damage: 0,
+      enemyDamage: 0,
+      wasCritical: false,
+      playerEvaded: false,
+      playerDefeated: result.updatedCharacter.health <= 0,
+      monsterDefeated: false,
       healedAmount,
+      result: 'HEALED',
       message: `${character.name} recuperó ${healedAmount} HP con ${entry.item.name}.`,
       persistence: 'database',
     })

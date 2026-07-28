@@ -39,11 +39,21 @@ function mockAttack() {
   }
 
   return {
+    skillName: 'Ataque básico',
     damage,
     wasCritical,
     enemyDamage,
     playerEvaded,
     playerDefeated,
+    monsterDefeated: defeated,
+    healedAmount: 0,
+    result: playerDefeated
+      ? 'PLAYER_DEFEATED'
+      : defeated
+        ? 'VICTORY'
+        : playerEvaded
+          ? 'EVADED'
+          : 'HIT',
     defeated,
     enemy: { ...battle.enemy },
     character: mockCharacter,

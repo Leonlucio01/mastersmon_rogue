@@ -1,59 +1,175 @@
 import { ContactShadows, Float } from '@react-three/drei'
-import { Canvas, useFrame } from '@react-three/fiber'
-import { Suspense, useEffect, useRef } from 'react'
+import { Canvas, useFrame, useThree } from '@react-three/fiber'
+import { Suspense, useEffect, useMemo, useRef } from 'react'
 import * as THREE from 'three'
 
-function Character({ isAttacking }) {
-  const group = useRef()
-  const attackProgress = useRef(0)
+function actionType(skillName = '') {
+  if (skillName.includes('Corte veloz')) return 'swift'
+  if (skillName.includes('Golpe sombrío')) return 'shadow'
+  if (skillName.includes('Paso evasivo')) return 'evade'
+  return 'basic'
+}
 
-  useFrame((_, delta) => {
+function Character({
+  isAttacking,
+  actionSkill,
+  actionKey,
+  defeated,
+  evasiveActive,
+}) {
+  const group = useRef()
+  const bodyMaterial = useRef()
+  const auraMaterial = useRef()
+  const actionTime = useRef(0)
+  const kind = actionType(actionSkill)
+
+  useEffect(() => {
+    actionTime.current = 0
+  }, [actionKey])
+
+  useFrame(({ clock }, delta) => {
     if (!group.current) return
-    attackProgress.current = THREE.MathUtils.lerp(
-      attackProgress.current,
-      isAttacking ? 1 : 0,
-      Math.min(1, delta * 12),
+    if (isAttacking) actionTime.current += delta
+
+    const duration = kind === 'swift' ? 0.48 : kind === 'shadow' ? 0.72 : 0.58
+    const progress = Math.min(1, actionTime.current / duration)
+    let lunge = 0
+
+    if (isAttacking) {
+      if (kind === 'swift') lunge = Math.abs(Math.sin(progress * Math.PI * 2)) * 0.9
+      else if (kind === 'shadow') {
+        lunge =
+          progress < 0.42
+            ? -Math.sin((progress / 0.42) * Math.PI) * 0.18
+            : Math.sin(((progress - 0.42) / 0.58) * Math.PI) * 1.12
+      } else if (kind === 'evade') lunge = -Math.sin(progress * Math.PI) * 0.5
+      else lunge = Math.sin(progress * Math.PI) * 0.76
+    }
+
+    const targetY = defeated ? -0.28 : 0.15
+    group.current.position.x = -1.7 + lunge
+    group.current.position.y = THREE.MathUtils.lerp(
+      group.current.position.y,
+      targetY,
+      Math.min(1, delta * 8),
     )
-    group.current.position.x = -1.7 + attackProgress.current * 0.72
-    group.current.rotation.z = -attackProgress.current * 0.08
+    group.current.position.z =
+      kind === 'evade' && isAttacking ? Math.sin(progress * Math.PI) * 0.22 : 0
+    group.current.rotation.z = THREE.MathUtils.lerp(
+      group.current.rotation.z,
+      defeated ? -0.88 : -lunge * 0.1,
+      Math.min(1, delta * 10),
+    )
+
+    const auraVisible = evasiveActive || (kind === 'evade' && isAttacking)
+    if (auraMaterial.current) {
+      auraMaterial.current.opacity = auraVisible
+        ? 0.28 + Math.sin(clock.elapsedTime * 7) * 0.12
+        : 0
+    }
+    if (bodyMaterial.current) {
+      bodyMaterial.current.opacity =
+        kind === 'evade' && isAttacking
+          ? 0.52 + Math.sin(progress * Math.PI * 4) * 0.18
+          : defeated
+            ? 0.55
+            : 1
+    }
   })
+
+  const showGhost = (kind === 'evade' && isAttacking) || evasiveActive
 
   return (
     <group ref={group} position={[-1.7, 0.15, 0]}>
+      {showGhost && (
+        <>
+          <mesh position={[-0.28, 0.9, -0.08]} scale={[0.9, 1, 0.9]}>
+            <capsuleGeometry args={[0.36, 0.8, 8, 18]} />
+            <meshBasicMaterial color="#63e6d5" transparent opacity={0.09} />
+          </mesh>
+          <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.04, 0]}>
+            <torusGeometry args={[0.68, 0.035, 8, 48]} />
+            <meshBasicMaterial
+              ref={auraMaterial}
+              color="#67f4d1"
+              transparent
+              opacity={0}
+              blending={THREE.AdditiveBlending}
+            />
+          </mesh>
+          <pointLight color="#67f4d1" intensity={1.3} distance={3} position={[0, 0.8, 0]} />
+        </>
+      )}
       <mesh castShadow position={[0, 0.85, 0]}>
         <capsuleGeometry args={[0.36, 0.8, 8, 18]} />
-        <meshStandardMaterial color="#38bdf8" roughness={0.55} />
+        <meshStandardMaterial
+          ref={bodyMaterial}
+          color={defeated ? '#47727a' : '#38bdf8'}
+          roughness={0.55}
+          transparent
+        />
       </mesh>
       <mesh castShadow position={[0, 1.65, 0]}>
         <sphereGeometry args={[0.34, 24, 24]} />
         <meshStandardMaterial color="#f5cfa9" roughness={0.65} />
       </mesh>
-      <mesh castShadow position={[-0.14, 1.72, 0.27]} scale={[0.05, 0.05, 0.04]}>
-        <sphereGeometry args={[1, 12, 12]} />
-        <meshStandardMaterial color="#082f49" />
-      </mesh>
-      <mesh castShadow position={[0.14, 1.72, 0.27]} scale={[0.05, 0.05, 0.04]}>
-        <sphereGeometry args={[1, 12, 12]} />
-        <meshStandardMaterial color="#082f49" />
-      </mesh>
+      {!defeated && (
+        <>
+          <mesh castShadow position={[-0.14, 1.72, 0.27]} scale={[0.05, 0.05, 0.04]}>
+            <sphereGeometry args={[1, 12, 12]} />
+            <meshStandardMaterial color="#082f49" />
+          </mesh>
+          <mesh castShadow position={[0.14, 1.72, 0.27]} scale={[0.05, 0.05, 0.04]}>
+            <sphereGeometry args={[1, 12, 12]} />
+            <meshStandardMaterial color="#082f49" />
+          </mesh>
+        </>
+      )}
     </group>
   )
 }
 
-function Enemy({ defeated, impactKey }) {
+function Enemy({ defeated, impactKey, critical }) {
   const group = useRef()
+  const material = useRef()
   const hitTime = useRef(0)
+  const defeatProgress = useRef(0)
 
   useEffect(() => {
-    if (impactKey) hitTime.current = 0.34
-  }, [impactKey])
+    if (impactKey) hitTime.current = critical ? 0.48 : 0.34
+  }, [impactKey, critical])
 
   useFrame((_, delta) => {
     if (!group.current) return
     hitTime.current = Math.max(0, hitTime.current - delta)
-    const shake = hitTime.current > 0 ? Math.sin(hitTime.current * 85) * 0.11 : 0
+    defeatProgress.current = THREE.MathUtils.lerp(
+      defeatProgress.current,
+      defeated ? 1 : 0,
+      Math.min(1, delta * 3.8),
+    )
+    const shake =
+      hitTime.current > 0
+        ? Math.sin(hitTime.current * (critical ? 125 : 85)) *
+          (critical ? 0.18 : 0.1)
+        : 0
+    const fall = defeatProgress.current
+
     group.current.position.x = 1.65 + shake
-    group.current.rotation.z = shake * 0.45
+    group.current.position.y = 0.2 - fall * 0.58
+    group.current.rotation.z = shake * 0.4 + fall * 1.05
+    group.current.scale.set(1 + fall * 0.12, 1 - fall * 0.72, 1 + fall * 0.12)
+
+    if (material.current) {
+      material.current.opacity = 1 - fall * 0.82
+      material.current.emissive.set(
+        hitTime.current > 0
+          ? critical
+            ? '#7d4b00'
+            : '#5c1b1b'
+          : '#000000',
+      )
+      material.current.emissiveIntensity = hitTime.current > 0 ? 1.7 : 0
+    }
   })
 
   return (
@@ -62,17 +178,14 @@ function Enemy({ defeated, impactKey }) {
       rotationIntensity={defeated ? 0 : 0.12}
       floatIntensity={defeated ? 0 : 0.25}
     >
-      <group
-        ref={group}
-        position={[1.65, defeated ? -0.25 : 0.2, 0]}
-        scale={defeated ? [1.15, 0.25, 1.15] : 1}
-      >
+      <group ref={group} position={[1.65, 0.2, 0]}>
         <mesh castShadow position={[0, 0.55, 0]}>
           <sphereGeometry args={[0.72, 32, 24]} />
           <meshStandardMaterial
+            ref={material}
             color={defeated ? '#516057' : '#a3e635'}
             roughness={0.7}
-            emissive={hitTime.current > 0 ? '#5c1b1b' : '#000000'}
+            transparent
           />
         </mesh>
         {!defeated && (
@@ -92,7 +205,178 @@ function Enemy({ defeated, impactKey }) {
   )
 }
 
-function World({ enemyDefeated, isAttacking, impactKey }) {
+function SkillEffect({ isAttacking, actionSkill, actionKey }) {
+  const slashOne = useRef()
+  const slashTwo = useRef()
+  const shadowOrb = useRef()
+  const elapsed = useRef(0)
+  const kind = actionType(actionSkill)
+
+  useEffect(() => {
+    elapsed.current = 0
+  }, [actionKey])
+
+  useFrame((_, delta) => {
+    if (isAttacking) elapsed.current += delta
+    const duration = kind === 'shadow' ? 0.72 : 0.52
+    const progress = Math.min(1, elapsed.current / duration)
+
+    for (const [index, mesh] of [slashOne.current, slashTwo.current].entries()) {
+      if (!mesh) continue
+      const offset = index * 0.2
+      const local = Math.max(0, Math.min(1, (progress - offset) / 0.42))
+      const visible = isAttacking && (kind === 'swift' || kind === 'basic') && local < 1
+      mesh.material.opacity = visible ? Math.sin(local * Math.PI) * 0.9 : 0
+      mesh.scale.setScalar(0.7 + local * 0.65)
+      mesh.rotation.z = -0.9 + local * 1.4 + index * 0.35
+    }
+
+    if (shadowOrb.current) {
+      const visible = isAttacking && kind === 'shadow'
+      shadowOrb.current.material.opacity = visible
+        ? Math.sin(progress * Math.PI) * 0.5
+        : 0
+      shadowOrb.current.scale.setScalar(0.25 + progress * 1.25)
+      shadowOrb.current.rotation.y += delta * 3
+    }
+  })
+
+  return (
+    <group position={[1.18, 0.9, 0.28]}>
+      <mesh ref={slashOne} rotation={[0, 0, -0.9]}>
+        <torusGeometry args={[0.58, 0.035, 8, 42, Math.PI * 1.25]} />
+        <meshBasicMaterial
+          color={kind === 'swift' ? '#8ff8ff' : '#e8ffad'}
+          transparent
+          opacity={0}
+          blending={THREE.AdditiveBlending}
+        />
+      </mesh>
+      <mesh ref={slashTwo} rotation={[0, 0, -0.5]} position={[0.08, 0.04, 0.04]}>
+        <torusGeometry args={[0.72, 0.025, 8, 42, Math.PI * 1.15]} />
+        <meshBasicMaterial
+          color="#65e6ff"
+          transparent
+          opacity={0}
+          blending={THREE.AdditiveBlending}
+        />
+      </mesh>
+      <mesh ref={shadowOrb}>
+        <icosahedronGeometry args={[0.72, 2]} />
+        <meshBasicMaterial
+          color="#7c3aed"
+          wireframe
+          transparent
+          opacity={0}
+          blending={THREE.AdditiveBlending}
+        />
+      </mesh>
+    </group>
+  )
+}
+
+function ImpactParticles({ impactKey, critical, hasDamage }) {
+  const meshes = useRef([])
+  const elapsed = useRef(1)
+  const vectors = useMemo(
+    () =>
+      Array.from({ length: 12 }, (_, index) => {
+        const angle = (index / 12) * Math.PI * 2
+        return new THREE.Vector3(
+          Math.cos(angle),
+          Math.sin(angle) * 0.7 + 0.15,
+          Math.sin(angle * 2) * 0.35,
+        )
+      }),
+    [],
+  )
+
+  useEffect(() => {
+    if (impactKey && hasDamage) elapsed.current = 0
+  }, [impactKey, hasDamage])
+
+  useFrame((_, delta) => {
+    elapsed.current += delta
+    const progress = Math.min(1, elapsed.current / 0.55)
+    meshes.current.forEach((mesh, index) => {
+      if (!mesh) return
+      mesh.visible = progress < 1
+      mesh.position.copy(vectors[index]).multiplyScalar(progress * (critical ? 1.05 : 0.7))
+      mesh.material.opacity = (1 - progress) * 0.9
+      mesh.scale.setScalar((1 - progress) * (critical ? 0.13 : 0.09))
+    })
+  })
+
+  return (
+    <group position={[1.65, 0.86, 0.35]}>
+      {vectors.map((_, index) => (
+        <mesh
+          key={index}
+          ref={(mesh) => {
+            meshes.current[index] = mesh
+          }}
+          visible={false}
+        >
+          <sphereGeometry args={[1, 8, 8]} />
+          <meshBasicMaterial
+            color={critical ? '#ffd166' : '#d9ff8f'}
+            transparent
+            opacity={0}
+            blending={THREE.AdditiveBlending}
+          />
+        </mesh>
+      ))}
+    </group>
+  )
+}
+
+function CameraEffects({ impactKey, critical, counterKey, playerEvaded }) {
+  const { camera } = useThree()
+  const base = useRef(camera.position.clone())
+  const shakeTime = useRef(0)
+  const intensity = useRef(0)
+
+  useEffect(() => {
+    if (impactKey) {
+      shakeTime.current = critical ? 0.34 : 0.12
+      intensity.current = critical ? 0.09 : 0.025
+    }
+  }, [impactKey, critical])
+
+  useEffect(() => {
+    if (counterKey && !playerEvaded) {
+      shakeTime.current = 0.2
+      intensity.current = 0.045
+    }
+  }, [counterKey, playerEvaded])
+
+  useFrame((_, delta) => {
+    shakeTime.current = Math.max(0, shakeTime.current - delta)
+    if (shakeTime.current > 0) {
+      camera.position.x =
+        base.current.x + Math.sin(shakeTime.current * 110) * intensity.current
+      camera.position.y =
+        base.current.y + Math.cos(shakeTime.current * 95) * intensity.current
+    } else {
+      camera.position.x = THREE.MathUtils.lerp(camera.position.x, base.current.x, 0.28)
+      camera.position.y = THREE.MathUtils.lerp(camera.position.y, base.current.y, 0.28)
+    }
+  })
+
+  return null
+}
+
+function World({
+  enemyDefeated,
+  playerDefeated,
+  isAttacking,
+  actionSkill,
+  actionKey,
+  impactKey,
+  lastHit,
+  lastCounter,
+  evasiveActive,
+}) {
   return (
     <>
       <color attach="background" args={['#101e22']} />
@@ -110,14 +394,51 @@ function World({ enemyDefeated, isAttacking, impactKey }) {
         <meshStandardMaterial color="#49644a" roughness={1} />
       </mesh>
 
-      <Character isAttacking={isAttacking} />
-      <Enemy defeated={enemyDefeated} impactKey={impactKey} />
+      <Character
+        isAttacking={isAttacking}
+        actionSkill={actionSkill}
+        actionKey={actionKey}
+        defeated={playerDefeated}
+        evasiveActive={evasiveActive}
+      />
+      <Enemy
+        defeated={enemyDefeated}
+        impactKey={impactKey}
+        critical={Boolean(lastHit?.wasCritical)}
+      />
+      <SkillEffect
+        isAttacking={isAttacking}
+        actionSkill={actionSkill}
+        actionKey={actionKey}
+      />
+      <ImpactParticles
+        impactKey={impactKey}
+        critical={Boolean(lastHit?.wasCritical)}
+        hasDamage={Boolean(lastHit?.damage)}
+      />
+      <CameraEffects
+        impactKey={impactKey}
+        critical={Boolean(lastHit?.wasCritical)}
+        counterKey={lastCounter?.id}
+        playerEvaded={Boolean(lastCounter?.evaded)}
+      />
       <ContactShadows position={[0, 0.01, 0]} opacity={0.55} scale={9} blur={2.6} far={4} />
     </>
   )
 }
 
-export default function GameScene({ enemyDefeated, isAttacking, impactKey, enemyName }) {
+export default function GameScene({
+  enemyDefeated,
+  playerDefeated,
+  isAttacking,
+  actionSkill,
+  actionKey,
+  impactKey,
+  enemyName,
+  lastHit,
+  lastCounter,
+  evasiveActive,
+}) {
   return (
     <Canvas
       shadows
@@ -129,8 +450,14 @@ export default function GameScene({ enemyDefeated, isAttacking, impactKey, enemy
       <Suspense fallback={null}>
         <World
           enemyDefeated={enemyDefeated}
+          playerDefeated={playerDefeated}
           isAttacking={isAttacking}
+          actionSkill={actionSkill}
+          actionKey={actionKey}
           impactKey={impactKey}
+          lastHit={lastHit}
+          lastCounter={lastCounter}
+          evasiveActive={evasiveActive}
         />
       </Suspense>
     </Canvas>
