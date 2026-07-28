@@ -1,13 +1,17 @@
 import { create } from 'zustand'
 import {
   attackEnemy,
+  equipItem as equipItemRequest,
   getCharacter,
+  getEquipment,
   getHealth,
-  getInventory,
   getMapCurrent,
   getMapZones,
+  getSkills,
   nextMapMonster,
   selectMapZone,
+  unequipItem as unequipItemRequest,
+  useBattleSkill,
 } from '../services/api'
 
 const fallbackCharacter = {
@@ -27,10 +31,20 @@ const fallbackCharacter = {
 }
 
 const fallbackInventory = [
-  { id: 'potion', name: 'Poción menor', quantity: 3, type: 'CONSUMABLE' },
-  { id: 'sword', name: 'Espada de aprendiz', quantity: 1, type: 'WEAPON' },
-  { id: 'herb', name: 'Hierba lunar', quantity: 4, type: 'MATERIAL' },
+  { inventoryItemId: 'demo-potion', id: 'potion', name: 'Poción menor', quantity: 3, type: 'CONSUMABLE', itemType: 'consumable', rarity: 'common', equipped: false, bonuses: {} },
+  { inventoryItemId: 'demo-sword', id: 'sword', name: 'Espada de aprendiz', quantity: 1, type: 'WEAPON', itemType: 'weapon', rarity: 'common', equipped: true, slot: 'weapon', bonuses: { attack: 5, power: 5 } },
+  { inventoryItemId: 'demo-herb', id: 'herb', name: 'Hierba lunar', quantity: 4, type: 'MATERIAL', itemType: 'material', rarity: 'common', equipped: false, bonuses: {} },
 ]
+
+const emptyEquipment = {
+  weapon: fallbackInventory[1],
+  helmet: null,
+  armor: null,
+  boots: null,
+  necklace: null,
+  ring: null,
+  artifact: null,
+}
 
 const fallbackEnemy = {
   id: 'moss-slime',
@@ -100,9 +114,60 @@ const fallbackZones = [
   },
 ]
 
+const fallbackSkills = [
+  { id: 'basic', name: 'Ataque básico', description: 'Golpe fiable.', skillType: 'basic', damageMultiplier: 1, critBonus: 0, energyCost: 0, cooldownTurns: 0, cooldownRemaining: 0, requiredLevel: 1, icon: '⚔', evasionBonus: 0, durationTurns: 0, activeTurns: 0 },
+  { id: 'swift', name: 'Corte veloz', description: 'Ataque rápido.', skillType: 'damage', damageMultiplier: 1.2, critBonus: 0, energyCost: 12, cooldownTurns: 1, cooldownRemaining: 0, requiredLevel: 1, icon: '≋', evasionBonus: 0, durationTurns: 0, activeTurns: 0 },
+  { id: 'shadow', name: 'Golpe sombrío', description: 'Golpe de alto daño.', skillType: 'damage', damageMultiplier: 1.8, critBonus: 0.2, energyCost: 28, cooldownTurns: 3, cooldownRemaining: 0, requiredLevel: 1, icon: '☾', evasionBonus: 0, durationTurns: 0, activeTurns: 0 },
+  { id: 'evade', name: 'Paso evasivo', description: 'Aumenta la evasión.', skillType: 'buff', damageMultiplier: 0, critBonus: 0, energyCost: 14, cooldownTurns: 3, cooldownRemaining: 0, requiredLevel: 1, icon: '◇', evasionBonus: 0.3, durationTurns: 2, activeTurns: 0 },
+]
+
+function combatUpdate(result, state) {
+  return {
+    enemy: result.enemy,
+    character: result.character ?? state.character,
+    inventory: result.inventory ?? state.inventory,
+    skills: result.skills ?? state.skills,
+    activeEffects: result.activeEffects ?? state.activeEffects,
+    progress: result.progress ?? state.progress,
+    lastHit: result.damage > 0
+      ? {
+          damage: result.damage,
+          wasCritical: result.wasCritical,
+          skillName: result.skill?.name,
+          id: Date.now(),
+        }
+      : null,
+    rewards: result.rewards,
+    canAdvance: Boolean(result.canAdvance),
+    zoneComplete: Boolean(result.zoneComplete),
+    unlockNotice: result.unlockedZone
+      ? `¡Nueva zona desbloqueada: ${result.unlockedZone.name}!`
+      : '',
+    zones:
+      result.unlockedZone || result.zoneComplete
+        ? state.zones.map((zone) =>
+            result.unlockedZone && zone.id === result.unlockedZone.id
+              ? { ...zone, unlocked: true, available: true }
+              : zone.id === state.currentZone.id && result.zoneComplete
+                ? { ...zone, completed: true }
+                : zone,
+          )
+        : state.zones,
+    impactKey: state.impactKey + 1,
+    persistence: result.persistence,
+    message: result.wasCritical
+      ? `¡CRÍTICO! ${result.message}`
+      : result.message,
+    serverOnline: true,
+  }
+}
+
 export const useGameStore = create((set, get) => ({
   character: fallbackCharacter,
   inventory: fallbackInventory,
+  equipment: emptyEquipment,
+  skills: fallbackSkills,
+  activeEffects: [],
   enemy: fallbackEnemy,
   zones: fallbackZones,
   currentZone: fallbackZone,
@@ -113,6 +178,7 @@ export const useGameStore = create((set, get) => ({
   isAttacking: false,
   isChangingEnemy: false,
   isSelectingZone: false,
+  updatingItemId: null,
   message: 'Preparando la expedición...',
   lastHit: null,
   rewards: null,
@@ -126,18 +192,22 @@ export const useGameStore = create((set, get) => ({
 
     try {
       await getHealth()
-      const [characterResponse, inventoryResponse, zonesResponse, mapResponse] =
+      const [characterResponse, equipmentResponse, zonesResponse, mapResponse, skillsResponse] =
         await Promise.all([
           getCharacter(),
-          getInventory(),
+          getEquipment(),
           getMapZones(),
           getMapCurrent(),
+          getSkills(),
         ])
       const current = mapResponse.data
 
       set({
-        character: characterResponse.data,
-        inventory: inventoryResponse.data.items,
+        character: equipmentResponse.data.character ?? characterResponse.data,
+        inventory: equipmentResponse.data.inventory,
+        equipment: equipmentResponse.data.equipment,
+        skills: skillsResponse.data.skills,
+        activeEffects: skillsResponse.data.activeEffects,
         zones: zonesResponse.data.zones,
         currentZone: current.zone,
         progress: current.progress,
@@ -152,6 +222,9 @@ export const useGameStore = create((set, get) => ({
       set({
         character: fallbackCharacter,
         inventory: fallbackInventory,
+        equipment: emptyEquipment,
+        skills: fallbackSkills,
+        activeEffects: [],
         enemy: fallbackEnemy,
         zones: fallbackZones,
         currentZone: fallbackZone,
@@ -179,44 +252,46 @@ export const useGameStore = create((set, get) => ({
     try {
       const response = await attackEnemy()
       const result = response.data
-      set((state) => ({
-        enemy: result.enemy,
-        character: result.character ?? state.character,
-        inventory: result.inventory ?? state.inventory,
-        progress: result.progress ?? state.progress,
-        lastHit: {
-          damage: result.damage,
-          wasCritical: result.wasCritical,
-          id: Date.now(),
-        },
-        rewards: result.rewards,
-        canAdvance: Boolean(result.canAdvance),
-        zoneComplete: Boolean(result.zoneComplete),
-        unlockNotice: result.unlockedZone
-          ? `¡Nueva zona desbloqueada: ${result.unlockedZone.name}!`
-          : '',
-        zones:
-          result.unlockedZone || result.zoneComplete
-            ? state.zones.map((zone) =>
-                result.unlockedZone && zone.id === result.unlockedZone.id
-                  ? { ...zone, unlocked: true, available: true }
-                  : zone.id === state.currentZone.id && result.zoneComplete
-                    ? { ...zone, completed: true }
-                    : zone,
-              )
-            : state.zones,
-        impactKey: state.impactKey + 1,
-        persistence: result.persistence,
-        message: result.wasCritical
-          ? `¡CRÍTICO! ${result.message}`
-          : result.message,
-        serverOnline: true,
-      }))
+      set((state) => combatUpdate(result, state))
     } catch (error) {
       set({
         message:
           error.response?.data?.error ??
           'El ataque falló. Comprueba la conexión con el servidor.',
+      })
+    } finally {
+      window.setTimeout(() => set({ isAttacking: false }), 520)
+    }
+  },
+
+  useSkill: async (skill) => {
+    if (skill.name === 'Ataque básico') {
+      return get().attack()
+    }
+
+    const { enemy, isAttacking, character } = get()
+    if (
+      isAttacking ||
+      enemy.health <= 0 ||
+      skill.cooldownRemaining > 0 ||
+      character.energy < skill.energyCost
+    ) return
+
+    set({
+      isAttacking: true,
+      message: `${skill.name} concentra su energía...`,
+      rewards: null,
+      unlockNotice: '',
+    })
+
+    try {
+      const response = await useBattleSkill(skill.id)
+      set((state) => combatUpdate(response.data, state))
+    } catch (error) {
+      set({
+        message:
+          error.response?.data?.error ??
+          'La habilidad falló. Comprueba la conexión con el servidor.',
       })
     } finally {
       window.setTimeout(() => set({ isAttacking: false }), 520)
@@ -288,6 +363,48 @@ export const useGameStore = create((set, get) => ({
       })
     } finally {
       set({ isSelectingZone: false })
+    }
+  },
+
+  equipItem: async (inventoryItemId) => {
+    if (get().updatingItemId) return
+    set({ updatingItemId: inventoryItemId, message: 'Ajustando el equipo...' })
+    try {
+      const response = await equipItemRequest(inventoryItemId)
+      set({
+        character: response.data.character,
+        inventory: response.data.inventory,
+        equipment: response.data.equipment,
+        message: 'Equipo actualizado. Tus estadísticas han aumentado.',
+      })
+    } catch (error) {
+      set({
+        message:
+          error.response?.data?.error ?? 'No fue posible equipar el objeto.',
+      })
+    } finally {
+      set({ updatingItemId: null })
+    }
+  },
+
+  unequipItem: async (inventoryItemId) => {
+    if (get().updatingItemId) return
+    set({ updatingItemId: inventoryItemId, message: 'Retirando el objeto...' })
+    try {
+      const response = await unequipItemRequest(inventoryItemId)
+      set({
+        character: response.data.character,
+        inventory: response.data.inventory,
+        equipment: response.data.equipment,
+        message: 'Objeto desequipado y estadísticas recalculadas.',
+      })
+    } catch (error) {
+      set({
+        message:
+          error.response?.data?.error ?? 'No fue posible desequipar el objeto.',
+      })
+    } finally {
+      set({ updatingItemId: null })
     }
   },
 }))

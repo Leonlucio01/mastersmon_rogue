@@ -9,10 +9,39 @@ datasource db {
 
 enum ItemType {
   WEAPON
+  HELMET
   ARMOR
+  BOOTS
+  NECKLACE
+  RING
+  ARTIFACT
   CONSUMABLE
   MATERIAL
   QUEST
+}
+
+enum ItemRarity {
+  COMMON
+  RARE
+  EPIC
+  LEGENDARY
+  MYTHIC
+}
+
+enum EquipmentSlot {
+  WEAPON
+  HELMET
+  ARMOR
+  BOOTS
+  NECKLACE
+  RING
+  ARTIFACT
+}
+
+enum SkillType {
+  BASIC
+  DAMAGE
+  BUFF
 }
 
 model User {
@@ -37,6 +66,13 @@ model Character {
   maxHealth           Int                 @default(100)
   energy              Int                 @default(100)
   maxEnergy           Int                 @default(100)
+  baseAttack          Int                 @default(12)
+  baseDefense         Int                 @default(3)
+  baseMaxHealth       Int                 @default(100)
+  baseCritRate        Float               @default(0.1)
+  baseEvasion         Float               @default(0.05)
+  baseAgility         Int                 @default(10)
+  basePower           Int                 @default(10)
   attack              Int                 @default(12)
   defense             Int                 @default(3)
   critRate            Float               @default(0.1)
@@ -50,9 +86,44 @@ model Character {
   zone                Zone?               @relation(fields: [zoneId], references: [id])
   inventoryItems      InventoryItem[]
   battleLogs          BattleLog[]
+  skills              CharacterSkill[]
   progress            CharacterProgress[]
   createdAt           DateTime            @default(now())
   updatedAt           DateTime            @updatedAt
+}
+
+model Skill {
+  id               String           @id @default(cuid())
+  name             String           @unique
+  description      String
+  skillType        SkillType
+  damageMultiplier Float            @default(1)
+  critBonus        Float            @default(0)
+  energyCost       Int              @default(0)
+  cooldownTurns    Int              @default(0)
+  requiredLevel    Int              @default(1)
+  icon             String
+  evasionBonus     Float            @default(0)
+  durationTurns    Int              @default(0)
+  characters       CharacterSkill[]
+  battleLogs       BattleLog[]
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+}
+
+model CharacterSkill {
+  id                String    @id @default(cuid())
+  characterId       String
+  character         Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  skillId           String
+  skill             Skill     @relation(fields: [skillId], references: [id], onDelete: Cascade)
+  cooldownRemaining Int       @default(0)
+  activeTurns       Int       @default(0)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@unique([characterId, skillId])
+  @@index([characterId])
 }
 
 model Item {
@@ -62,6 +133,14 @@ model Item {
   type         ItemType
   value        Int             @default(0)
   power        Int             @default(0)
+  rarity       ItemRarity      @default(COMMON)
+  attackBonus  Int             @default(0)
+  defenseBonus Int             @default(0)
+  healthBonus  Int             @default(0)
+  critBonus    Float           @default(0)
+  evasionBonus Float           @default(0)
+  agilityBonus Int             @default(0)
+  powerBonus   Int             @default(0)
   inventory    InventoryItem[]
   monsterDrops Monster[]       @relation("MonsterDrop")
   battleDrops  BattleLog[]     @relation("BattleDrop")
@@ -70,17 +149,19 @@ model Item {
 }
 
 model InventoryItem {
-  id          String    @id @default(cuid())
-  quantity    Int       @default(1)
-  equipped    Boolean   @default(false)
+  id          String         @id @default(cuid())
+  quantity    Int            @default(1)
+  equipped    Boolean        @default(false)
+  slot        EquipmentSlot?
   characterId String
-  character   Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  character   Character      @relation(fields: [characterId], references: [id], onDelete: Cascade)
   itemId      String
-  item        Item      @relation(fields: [itemId], references: [id], onDelete: Cascade)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  item        Item           @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
 
   @@unique([characterId, itemId])
+  @@unique([characterId, slot])
 }
 
 model Zone {
@@ -154,6 +235,9 @@ model BattleLog {
   expReward       Int       @default(0)
   droppedItemId   String?
   droppedItem     Item?     @relation("BattleDrop", fields: [droppedItemId], references: [id], onDelete: SetNull)
+  skillId         String?
+  skill           Skill?    @relation(fields: [skillId], references: [id], onDelete: SetNull)
+  skillName       String?
   result          String
   createdAt       DateTime  @default(now())
 }

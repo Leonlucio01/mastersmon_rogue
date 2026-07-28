@@ -20,8 +20,16 @@ api.interceptors.request.use((config) => {
 export const getHealth = () => api.get('/health')
 export const getCharacter = () => api.get('/character/me')
 export const getInventory = () => api.get('/inventory')
+export const getEquipment = () => api.get('/equipment')
+export const equipItem = (inventoryItemId) =>
+  api.post('/equipment/equip', { inventoryItemId })
+export const unequipItem = (inventoryItemId) =>
+  api.post('/equipment/unequip', { inventoryItemId })
 export const getCurrentBattle = () => api.get('/battle/current')
 export const attackEnemy = () => api.post('/battle/attack')
+export const useBattleSkill = (skillId) =>
+  api.post('/battle/use-skill', { skillId })
+export const getSkills = () => api.get('/skills')
 export const getNextEnemy = () => api.post('/battle/next')
 export const getMapZones = () => api.get('/map/zones')
 export const getMapCurrent = () => api.get('/map/current')

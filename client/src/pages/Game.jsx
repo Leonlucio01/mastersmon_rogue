@@ -1,7 +1,9 @@
 import { useEffect } from 'react'
 import Hud from '../components/Hud'
+import EquipmentPanel from '../components/EquipmentPanel'
 import Inventory from '../components/Inventory'
 import MapPanel from '../components/MapPanel'
+import SkillBar from '../components/SkillBar'
 import GameScene from '../game/GameScene'
 import { useAuthStore } from '../stores/authStore'
 import { useGameStore } from '../stores/gameStore'
@@ -37,6 +39,9 @@ export default function Game() {
   const {
     character,
     inventory,
+    equipment,
+    skills,
+    activeEffects,
     enemy,
     zones,
     currentZone,
@@ -47,6 +52,7 @@ export default function Game() {
     isAttacking,
     isChangingEnemy,
     isSelectingZone,
+    updatingItemId,
     message,
     lastHit,
     rewards,
@@ -55,9 +61,11 @@ export default function Game() {
     unlockNotice,
     impactKey,
     loadGame,
-    attack,
+    useSkill,
     advanceEnemy,
     selectZone,
+    equipItem,
+    unequipItem,
   } = useGameStore()
   const { token, logout, openAuth } = useAuthStore()
 
@@ -126,6 +134,7 @@ export default function Game() {
               <div key={lastHit.id} className={`floating-damage ${lastHit.wasCritical ? 'critical' : ''}`}>
                 {lastHit.wasCritical && <small>CRÍTICO</small>}
                 <strong>−{lastHit.damage}</strong>
+                {lastHit.skillName && <em>{lastHit.skillName}</em>}
               </div>
             )}
 
@@ -150,19 +159,19 @@ export default function Game() {
                   <span>✦</span>
                   Zona completada · Selecciona la siguiente ruta en el mapa
                 </div>
-              ) : (
-                <button
-                  className="attack-button"
-                  type="button"
-                  onClick={attack}
-                  disabled={isAttacking}
-                >
-                  <span>⚔</span>
-                  {isAttacking ? 'Atacando...' : 'Ataque básico'}
-                </button>
-              )}
+              ) : null}
             </div>
           </div>
+
+          {!enemyDefeated && (
+            <SkillBar
+              skills={skills}
+              character={character}
+              activeEffects={activeEffects}
+              isAttacking={isAttacking}
+              onUse={useSkill}
+            />
+          )}
         </div>
 
         <div className="side-column">
@@ -173,7 +182,17 @@ export default function Game() {
             isSelecting={isSelectingZone}
             unlockNotice={unlockNotice}
           />
-          <Inventory items={inventory} />
+          <EquipmentPanel
+            equipment={equipment}
+            onUnequip={unequipItem}
+            updatingItemId={updatingItemId}
+          />
+          <Inventory
+            items={inventory}
+            onEquip={equipItem}
+            onUnequip={unequipItem}
+            updatingItemId={updatingItemId}
+          />
           <section className="panel mission-card">
             <span className="eyebrow">{enemy.isBoss ? 'Desafío de zona' : 'Objetivo activo'}</span>
             <h2>{enemy.isBoss ? 'Combate contra el boss' : progress.label}</h2>
@@ -185,6 +204,7 @@ export default function Game() {
             <div className="character-combat-stats">
               <span>ATQ <b>{character.attack ?? character.power}</b></span>
               <span>DEF <b>{character.defense ?? 0}</b></span>
+              <span>HP <b>{character.maxHealth ?? 100}</b></span>
               <span>CRIT <b>{Math.round((character.critRate ?? 0.1) * 100)}%</b></span>
             </div>
             <div className="mission-progress">

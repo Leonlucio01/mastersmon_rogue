@@ -3,6 +3,7 @@ import { Router } from 'express'
 import jwt from 'jsonwebtoken'
 import { prisma } from '../lib/prisma.js'
 import { requireAuth } from '../middleware/auth.js'
+import { recalculateCharacterStats } from '../services/equipment.js'
 import { serializeCharacter } from '../utils/serializers.js'
 
 const router = Router()
@@ -48,6 +49,9 @@ router.post('/register', async (request, response, next) => {
     const starterItems = await prisma.item.findMany({
       where: { name: { in: ['Poción menor', 'Espada de aprendiz'] } },
     })
+    const starterSkills = await prisma.skill.findMany({
+      where: { requiredLevel: { lte: 1 } },
+    })
     const passwordHash = await bcrypt.hash(password, 12)
     const user = await prisma.user.create({
       data: {
@@ -63,6 +67,13 @@ router.post('/register', async (request, response, next) => {
             attack: 14,
             defense: 3,
             power: 16,
+            baseAttack: 12,
+            baseDefense: 3,
+            baseMaxHealth: 100,
+            baseCritRate: 0.1,
+            baseEvasion: 0.05,
+            baseAgility: 10,
+            basePower: 11,
             zoneId: zone.id,
             currentMonsterOrder: 1,
             progress: {
@@ -77,6 +88,12 @@ router.post('/register', async (request, response, next) => {
                 itemId: item.id,
                 quantity: item.name === 'Poción menor' ? 2 : 1,
                 equipped: item.name === 'Espada de aprendiz',
+                slot: item.name === 'Espada de aprendiz' ? 'WEAPON' : null,
+              })),
+            },
+            skills: {
+              create: starterSkills.map((skill) => ({
+                skillId: skill.id,
               })),
             },
           },
@@ -85,10 +102,12 @@ router.post('/register', async (request, response, next) => {
       include: { character: true },
     })
 
+    const recalculatedCharacter = await recalculateCharacterStats(user.character.id)
+
     response.status(201).json({
       token: createToken(user.id),
       user: publicUser(user),
-      character: serializeCharacter(user.character),
+      character: serializeCharacter(recalculatedCharacter),
     })
   } catch (error) {
     next(error)

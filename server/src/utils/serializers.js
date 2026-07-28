@@ -21,20 +21,41 @@ export function serializeCharacter(character) {
     power: character.power,
     currentZoneId: character.zoneId,
     currentMonsterOrder: character.currentMonsterOrder,
+    baseStats: {
+      attack: character.baseAttack,
+      defense: character.baseDefense,
+      maxHealth: character.baseMaxHealth,
+      critRate: character.baseCritRate,
+      evasion: character.baseEvasion,
+      agility: character.baseAgility,
+      power: character.basePower,
+    },
   }
 }
 
 export function serializeInventory(items) {
-  return items.map(({ item, quantity, equipped, id }) => ({
+  return items.map(({ item, quantity, equipped, slot, id }) => ({
     inventoryItemId: id,
     id: item.id,
     name: item.name,
     description: item.description,
     type: item.type,
+    itemType: item.type.toLowerCase(),
+    rarity: item.rarity.toLowerCase(),
     value: item.value,
     power: item.power,
+    bonuses: {
+      attack: item.attackBonus,
+      defense: item.defenseBonus,
+      health: item.healthBonus,
+      crit: item.critBonus,
+      evasion: item.evasionBonus,
+      agility: item.agilityBonus,
+      power: item.powerBonus,
+    },
     quantity,
     equipped,
+    slot: slot?.toLowerCase() ?? null,
   }))
 }
 
