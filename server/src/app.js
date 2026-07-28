@@ -7,6 +7,7 @@ import battleRoutes from './routes/battle.routes.js'
 import characterRoutes from './routes/character.routes.js'
 import healthRoutes from './routes/health.routes.js'
 import inventoryRoutes from './routes/inventory.routes.js'
+import mapRoutes from './routes/map.routes.js'
 
 const app = express()
 const port = Number(process.env.PORT) || 4000
@@ -25,6 +26,7 @@ app.use('/api/auth', authRoutes)
 app.use('/api/character', characterRoutes)
 app.use('/api/inventory', inventoryRoutes)
 app.use('/api/battle', battleRoutes)
+app.use('/api/map', mapRoutes)
 
 app.use((request, response) => {
   response.status(404).json({

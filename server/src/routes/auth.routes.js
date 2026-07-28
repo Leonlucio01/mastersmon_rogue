@@ -40,7 +40,7 @@ router.post('/register', async (request, response, next) => {
       return response.status(409).json({ error: 'Ya existe un aventurero con ese correo.' })
     }
 
-    const zone = await prisma.zone.findFirst({ orderBy: { level: 'asc' } })
+    const zone = await prisma.zone.findFirst({ orderBy: { sortOrder: 'asc' } })
     if (!zone) {
       return response.status(503).json({ error: 'Ejecuta el seed antes de registrar jugadores.' })
     }
@@ -64,6 +64,14 @@ router.post('/register', async (request, response, next) => {
             defense: 3,
             power: 16,
             zoneId: zone.id,
+            currentMonsterOrder: 1,
+            progress: {
+              create: {
+                zoneId: zone.id,
+                unlocked: true,
+                currentMonsterOrder: 1,
+              },
+            },
             inventoryItems: {
               create: starterItems.map((item) => ({
                 itemId: item.id,

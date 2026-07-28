@@ -20,6 +20,7 @@ export function serializeCharacter(character) {
     agility: character.agility,
     power: character.power,
     currentZoneId: character.zoneId,
+    currentMonsterOrder: character.currentMonsterOrder,
   }
 }
 
@@ -49,5 +50,9 @@ export function serializeMonster(monster) {
     maxHealth: monster.maxHealth,
     power: monster.power,
     defense: monster.defense,
+    order: monster.sortOrder,
+    isBoss: monster.isBoss,
+    rewardGold: monster.rewardGold,
+    rewardExp: monster.rewardExp,
   }
 }

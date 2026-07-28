@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import Hud from '../components/Hud'
 import Inventory from '../components/Inventory'
+import MapPanel from '../components/MapPanel'
 import GameScene from '../game/GameScene'
 import { useAuthStore } from '../stores/authStore'
 import { useGameStore } from '../stores/gameStore'
@@ -37,19 +38,26 @@ export default function Game() {
     character,
     inventory,
     enemy,
+    zones,
+    currentZone,
+    progress,
     serverOnline,
     persistence,
     isLoading,
     isAttacking,
     isChangingEnemy,
+    isSelectingZone,
     message,
     lastHit,
     rewards,
-    nextEnemy,
+    canAdvance,
+    zoneComplete,
+    unlockNotice,
     impactKey,
     loadGame,
     attack,
     advanceEnemy,
+    selectZone,
   } = useGameStore()
   const { token, logout, openAuth } = useAuthStore()
 
@@ -76,8 +84,10 @@ export default function Game() {
         <div className="world-card">
           <div className="world-meta">
             <div>
-              <span className="eyebrow">Zona 01</span>
-              <h1>Sendero Esmeralda</h1>
+              <span className="eyebrow">
+                Zona {String(currentZone.order ?? 1).padStart(2, '0')} · {progress.label}
+              </span>
+              <h1>{currentZone.name}</h1>
             </div>
             <span className={`server-status ${serverOnline ? 'online' : ''}`}>
               <i />
@@ -123,7 +133,7 @@ export default function Game() {
 
             <div className="battle-controls">
               <p>{message}</p>
-              {enemyDefeated ? (
+              {enemyDefeated && canAdvance ? (
                 <button
                   className="attack-button next-button"
                   type="button"
@@ -133,10 +143,13 @@ export default function Game() {
                   <span>➜</span>
                   {isChangingEnemy
                     ? 'Rastreando...'
-                    : nextEnemy
-                      ? `Siguiente: ${nextEnemy.name}`
-                      : 'Reiniciar expedición'}
+                    : 'Siguiente enemigo'}
                 </button>
+              ) : enemyDefeated && zoneComplete ? (
+                <div className="zone-complete-callout">
+                  <span>✦</span>
+                  Zona completada · Selecciona la siguiente ruta en el mapa
+                </div>
               ) : (
                 <button
                   className="attack-button"
@@ -153,18 +166,38 @@ export default function Game() {
         </div>
 
         <div className="side-column">
+          <MapPanel
+            zones={zones}
+            currentZoneId={currentZone.id}
+            onSelect={selectZone}
+            isSelecting={isSelectingZone}
+            unlockNotice={unlockNotice}
+          />
           <Inventory items={inventory} />
           <section className="panel mission-card">
-            <span className="eyebrow">Objetivo activo</span>
-            <h2>Primer encuentro</h2>
-            <p>Derrota a {enemy.name} y reúne recursos para tu expedición.</p>
+            <span className="eyebrow">{enemy.isBoss ? 'Desafío de zona' : 'Objetivo activo'}</span>
+            <h2>{enemy.isBoss ? 'Combate contra el boss' : progress.label}</h2>
+            <p>
+              {enemy.isBoss
+                ? `Derrota a ${enemy.name} para conquistar ${currentZone.name}.`
+                : `Derrota a ${enemy.name} y avanza hacia el boss.`}
+            </p>
             <div className="character-combat-stats">
               <span>ATQ <b>{character.attack ?? character.power}</b></span>
               <span>DEF <b>{character.defense ?? 0}</b></span>
               <span>CRIT <b>{Math.round((character.critRate ?? 0.1) * 100)}%</b></span>
             </div>
             <div className="mission-progress">
-              <span style={{ width: enemyDefeated ? '100%' : '35%' }} />
+              <span
+                style={{
+                  width: `${Math.min(
+                    100,
+                    ((progress.currentMonsterOrder - (enemyDefeated ? 0 : 1)) /
+                      progress.totalMonsters) *
+                      100,
+                  )}%`,
+                }}
+              />
             </div>
           </section>
         </div>

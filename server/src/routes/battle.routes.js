@@ -6,11 +6,12 @@ import {
   resetBattle,
 } from '../data/mockData.js'
 import { prisma } from '../lib/prisma.js'
+import { getCharacterInventory, getRequestCharacter } from '../services/gameData.js'
 import {
-  getCharacterInventory,
-  getCurrentMonster,
-  getRequestCharacter,
-} from '../services/gameData.js'
+  advanceCharacterMonster,
+  getCurrentMapState,
+  serializeMapState,
+} from '../services/mapProgress.js'
 import {
   serializeCharacter,
   serializeInventory,
@@ -18,18 +19,6 @@ import {
 } from '../utils/serializers.js'
 
 const router = Router()
-
-async function resetZoneMonsters(zoneId) {
-  const monsters = await prisma.monster.findMany({ where: { zoneId } })
-  await prisma.$transaction(
-    monsters.map((monster) =>
-      prisma.monster.update({
-        where: { id: monster.id },
-        data: { health: monster.maxHealth },
-      }),
-    ),
-  )
-}
 
 function mockAttack() {
   if (battle.enemy.health <= 0) resetBattle()
@@ -52,7 +41,7 @@ function mockAttack() {
     character: mockCharacter,
     inventory: mockInventory,
     rewards: defeated ? { gold: 12, experience: 18, droppedItem: null } : null,
-    nextEnemy: defeated ? { name: 'Colmillo joven' } : null,
+    canAdvance: defeated,
     persistence: 'mock',
     message: defeated
       ? `${battle.enemy.name} ha sido derrotado.`
@@ -63,30 +52,34 @@ function mockAttack() {
 router.get('/current', async (request, response) => {
   try {
     const character = await getRequestCharacter(request.user?.id)
-    if (!character?.zoneId) throw new Error('El personaje no tiene una zona activa.')
-    let monster = await getCurrentMonster(character.zoneId)
-
-    if (!monster) {
-      await resetZoneMonsters(character.zoneId)
-      monster = await getCurrentMonster(character.zoneId)
-    }
-
-    response.json({ enemy: serializeMonster(monster), persistence: 'database' })
+    if (!character) throw new Error('No existe un personaje activo.')
+    const state = await getCurrentMapState(character)
+    response.json(serializeMapState(state))
   } catch (error) {
     console.warn('Battle current fallback activo:', error.message)
-    response.json({ enemy: battle.enemy, persistence: 'mock' })
+    response.json({
+      enemy: battle.enemy,
+      zone: { name: 'Sendero Esmeralda', order: 1 },
+      progress: { currentMonsterOrder: 1, totalMonsters: 4, label: 'Enemigo 1/4' },
+      persistence: 'mock',
+    })
   }
 })
 
 router.post('/attack', async (request, response) => {
   try {
     const character = await getRequestCharacter(request.user?.id)
-    if (!character?.zoneId) throw new Error('El personaje no tiene una zona activa.')
-    const monster = await getCurrentMonster(character.zoneId)
-    if (!monster) {
+    if (!character) throw new Error('No existe un personaje activo.')
+    const state = await getCurrentMapState(character)
+    const monster = state.monster
+
+    if (state.progress.currentMonsterHealth <= 0) {
       return response.status(409).json({
-        error: 'No quedan enemigos. Prepara la siguiente expedición.',
-        allDefeated: true,
+        error: monster.isBoss
+          ? 'El boss fue derrotado. Selecciona la siguiente zona.'
+          : 'El enemigo fue derrotado. Avanza al siguiente.',
+        canAdvance: !monster.isBoss,
+        zoneComplete: monster.isBoss,
       })
     }
 
@@ -94,7 +87,10 @@ router.post('/attack', async (request, response) => {
     const baseDamage = Math.max(1, character.attack - monster.defense + variance)
     const wasCritical = Math.random() < (character.critRate || 0.1)
     const damage = Math.max(1, Math.round(baseDamage * (wasCritical ? 1.5 : 1)))
-    const remainingHealth = Math.max(0, monster.health - damage)
+    const remainingHealth = Math.max(
+      0,
+      state.progress.currentMonsterHealth - damage,
+    )
     const defeated = remainingHealth === 0
     const droppedItem =
       defeated && monster.dropItem && Math.random() < monster.dropChance
@@ -102,17 +98,24 @@ router.post('/attack', async (request, response) => {
         : null
 
     const result = await prisma.$transaction(async (transaction) => {
-      const updatedMonster = await transaction.monster.update({
-        where: { id: monster.id },
-        data: { health: remainingHealth },
+      const progress = await transaction.characterProgress.update({
+        where: { id: state.progress.id },
+        data: {
+          currentMonsterHealth: remainingHealth,
+          completed: defeated && monster.isBoss ? true : state.progress.completed,
+        },
       })
 
+      const nextExperience = character.experience + (defeated ? monster.rewardExp : 0)
+      const nextLevel = Math.max(character.level, Math.floor(nextExperience / 100) + 1)
       const updatedCharacter = await transaction.character.update({
         where: { id: character.id },
         data: defeated
           ? {
               gold: { increment: monster.rewardGold },
               experience: { increment: monster.rewardExp },
+              level: nextLevel,
+              power: monster.isBoss ? { increment: 2 } : undefined,
             }
           : {},
       })
@@ -144,45 +147,77 @@ router.post('/attack', async (request, response) => {
           goldReward: defeated ? monster.rewardGold : 0,
           expReward: defeated ? monster.rewardExp : 0,
           droppedItemId: droppedItem?.id,
-          result: defeated ? 'VICTORY' : 'HIT',
+          result: defeated
+            ? monster.isBoss
+              ? 'BOSS_VICTORY'
+              : 'VICTORY'
+            : 'HIT',
         },
       })
 
-      const inventory = await getCharacterInventory(character.id, transaction)
-      const nextEnemy = defeated
-        ? await transaction.monster.findFirst({
+      let unlockedZone = null
+      if (defeated && monster.isBoss) {
+        unlockedZone = await transaction.zone.findFirst({
+          where: { sortOrder: { gt: state.zone.sortOrder } },
+          orderBy: { sortOrder: 'asc' },
+        })
+        if (unlockedZone) {
+          await transaction.characterProgress.upsert({
             where: {
-              zoneId: character.zoneId,
-              health: { gt: 0 },
-              id: { not: monster.id },
+              characterId_zoneId: {
+                characterId: character.id,
+                zoneId: unlockedZone.id,
+              },
             },
-            orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
+            update: { unlocked: true },
+            create: {
+              characterId: character.id,
+              zoneId: unlockedZone.id,
+              unlocked: true,
+              currentMonsterOrder: 1,
+            },
           })
-        : null
+        }
+      }
 
-      return { updatedMonster, updatedCharacter, inventory, nextEnemy }
+      const inventory = await getCharacterInventory(character.id, transaction)
+      return { progress, updatedCharacter, inventory, unlockedZone }
     })
 
     response.json({
       damage,
       wasCritical,
       defeated,
-      enemy: serializeMonster(result.updatedMonster),
+      enemy: serializeMonster({ ...monster, health: remainingHealth }),
       character: serializeCharacter(result.updatedCharacter),
       inventory: serializeInventory(result.inventory),
       rewards: defeated
         ? {
             gold: monster.rewardGold,
             experience: monster.rewardExp,
+            power: monster.isBoss ? 2 : 0,
             droppedItem: droppedItem
               ? { id: droppedItem.id, name: droppedItem.name }
               : null,
           }
         : null,
-      nextEnemy: serializeMonster(result.nextEnemy),
+      progress: {
+        currentMonsterOrder: result.progress.currentMonsterOrder,
+        totalMonsters: state.totalMonsters,
+        label: monster.isBoss
+          ? 'Boss'
+          : `Enemigo ${result.progress.currentMonsterOrder}/${state.totalMonsters}`,
+      },
+      canAdvance: defeated && !monster.isBoss,
+      zoneComplete: defeated && monster.isBoss,
+      unlockedZone: result.unlockedZone
+        ? { id: result.unlockedZone.id, name: result.unlockedZone.name }
+        : null,
       persistence: 'database',
       message: defeated
-        ? `${monster.name} ha sido derrotado.`
+        ? monster.isBoss
+          ? `${monster.name} cayó. La zona ha sido conquistada.`
+          : `${monster.name} ha sido derrotado.`
         : `${character.name} golpea a ${monster.name}.`,
     })
   } catch (error) {
@@ -194,25 +229,19 @@ router.post('/attack', async (request, response) => {
 router.post('/next', async (request, response) => {
   try {
     const character = await getRequestCharacter(request.user?.id)
-    if (!character?.zoneId) throw new Error('El personaje no tiene una zona activa.')
-    let monster = await getCurrentMonster(character.zoneId)
-    let respawned = false
-
-    if (!monster) {
-      await resetZoneMonsters(character.zoneId)
-      monster = await getCurrentMonster(character.zoneId)
-      respawned = true
-    }
-
-    response.json({
-      enemy: serializeMonster(monster),
-      respawned,
-      persistence: 'database',
-    })
+    if (!character) throw new Error('No existe un personaje activo.')
+    const state = await advanceCharacterMonster(character)
+    response.json(serializeMapState(state))
   } catch (error) {
+    if (error.status) {
+      return response.status(error.status).json({
+        error: error.message,
+        zoneComplete: Boolean(error.zoneComplete),
+      })
+    }
     console.warn('Battle next fallback activo:', error.message)
     resetBattle()
-    response.json({ enemy: battle.enemy, respawned: true, persistence: 'mock' })
+    response.json({ enemy: battle.enemy, persistence: 'mock' })
   }
 })
 
