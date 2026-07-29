@@ -117,6 +117,22 @@ router.post('/register', async (request, response, next) => {
       include: { character: true },
     })
 
+    const starterPotion = starterItems.find(
+      (item) => item.name === 'Poción menor',
+    )
+    if (starterPotion) {
+      await prisma.inventoryItem.updateMany({
+        where: {
+          characterId: user.character.id,
+          itemId: starterPotion.id,
+          stackKey: null,
+        },
+        data: {
+          stackKey: `${user.character.id}:${starterPotion.id}`,
+        },
+      })
+    }
+
     const recalculatedCharacter = await recalculateCharacterStats(user.character.id)
 
     response.status(201).json({

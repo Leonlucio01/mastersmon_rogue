@@ -5,6 +5,7 @@ import Inventory from '../components/Inventory'
 import MapPanel from '../components/MapPanel'
 import OfflineRewards from '../components/OfflineRewards'
 import QuestPanel from '../components/QuestPanel'
+import ShopPanel from '../components/ShopPanel'
 import SkillBar from '../components/SkillBar'
 import GameScene from '../game/GameScene'
 import {
@@ -77,6 +78,11 @@ export default function Game() {
     offlineModalOpen,
     offlineNotice,
     isClaimingOffline,
+    shop,
+    shopOpen,
+    isShopLoading,
+    shopBusyKey,
+    shopNotice,
     claimingQuestId,
     rewards,
     canAdvance,
@@ -94,6 +100,10 @@ export default function Game() {
     closeOfflineModal,
     openOfflineModal,
     claimOfflineRewards,
+    openShop,
+    closeShop,
+    buyShopItem,
+    sellShopItem,
     equipItem,
     unequipItem,
   } = useGameStore()
@@ -181,6 +191,16 @@ export default function Game() {
         >
           <span>☾</span>
           {offlineNotice.message}
+        </div>
+      )}
+
+      {shopNotice && (
+        <div
+          key={shopNotice.id}
+          className="quest-notice quest-notice--claimed"
+        >
+          <span>◉</span>
+          {shopNotice.message}
         </div>
       )}
 
@@ -371,6 +391,16 @@ export default function Game() {
         </div>
 
         <div className="side-column">
+          <ShopPanel
+            shop={shop}
+            isOpen={shopOpen}
+            isLoading={isShopLoading}
+            busyKey={shopBusyKey}
+            onOpen={openShop}
+            onClose={closeShop}
+            onBuy={buyShopItem}
+            onSell={sellShopItem}
+          />
           <OfflineRewards
             status={offlineStatus}
             isOpen={offlineModalOpen}

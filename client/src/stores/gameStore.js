@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import {
   attackEnemy,
+  buyShopItem as buyShopItemRequest,
   claimOfflineRewards as claimOfflineRewardsRequest,
   claimQuest as claimQuestRequest,
   equipItem as equipItemRequest,
@@ -12,9 +13,11 @@ import {
   getOfflineStatus,
   getQuests,
   getSkills,
+  getShop,
   nextMapMonster,
   restCharacter,
   selectMapZone,
+  sellShopItem as sellShopItemRequest,
   unequipItem as unequipItemRequest,
   useBattleSkill,
   useInventoryItem,
@@ -179,6 +182,16 @@ const emptyOfflineStatus = {
   attemptIntervalSeconds: 120,
 }
 
+const emptyShop = {
+  merchant: {
+    name: 'Mercader Rowan',
+    message: 'Compra suministros para tu aventura',
+  },
+  gold: fallbackCharacter.gold,
+  items: [],
+  sellableInventory: [],
+}
+
 function combatUpdate(result, state) {
   const skillName = result.skillName ?? result.skill?.name ?? state.activeSkillName
   return {
@@ -283,6 +296,11 @@ export const useGameStore = create((set, get) => ({
   offlineModalOpen: false,
   offlineNotice: null,
   isClaimingOffline: false,
+  shop: emptyShop,
+  shopOpen: false,
+  isShopLoading: false,
+  shopBusyKey: null,
+  shopNotice: null,
   claimingQuestId: null,
   rewards: null,
   canAdvance: false,
@@ -300,6 +318,7 @@ export const useGameStore = create((set, get) => ({
       healEvent: null,
       questNotice: null,
       offlineNotice: null,
+      shopNotice: null,
       unlockNotice: '',
     })
 
@@ -407,6 +426,78 @@ export const useGameStore = create((set, get) => ({
       })
     } finally {
       set({ isClaimingOffline: false })
+    }
+  },
+
+  openShop: async () => {
+    if (get().isShopLoading) return
+    set({ shopOpen: true, isShopLoading: true })
+    try {
+      const response = await getShop()
+      set({ shop: response.data })
+    } catch (error) {
+      set({
+        message:
+          error.response?.data?.error ?? 'No fue posible abrir la tienda.',
+      })
+    } finally {
+      set({ isShopLoading: false })
+    }
+  },
+
+  closeShop: () => set({ shopOpen: false }),
+
+  buyShopItem: async (shopItemId) => {
+    if (get().shopBusyKey) return
+    const busyKey = `buy:${shopItemId}`
+    set({ shopBusyKey: busyKey })
+    try {
+      const response = await buyShopItemRequest(shopItemId)
+      set({
+        shop: response.data,
+        character: response.data.character,
+        inventory: response.data.inventory,
+        equipment: response.data.equipment,
+        shopNotice: {
+          message: `Compra realizada: ${response.data.transaction.itemName} · −${response.data.transaction.totalGold} oro`,
+          id: Date.now(),
+        },
+        message: response.data.message,
+      })
+    } catch (error) {
+      set({
+        message:
+          error.response?.data?.error ?? 'No fue posible completar la compra.',
+      })
+    } finally {
+      set({ shopBusyKey: null })
+    }
+  },
+
+  sellShopItem: async (inventoryItemId) => {
+    if (get().shopBusyKey) return
+    const busyKey = `sell:${inventoryItemId}`
+    set({ shopBusyKey: busyKey })
+    try {
+      const response = await sellShopItemRequest(inventoryItemId)
+      set({
+        shop: response.data,
+        character: response.data.character,
+        inventory: response.data.inventory,
+        equipment: response.data.equipment,
+        shopNotice: {
+          message: `Venta realizada: ${response.data.transaction.itemName} · +${response.data.transaction.totalGold} oro`,
+          id: Date.now(),
+        },
+        message: response.data.message,
+      })
+    } catch (error) {
+      set({
+        message:
+          error.response?.data?.error ?? 'No fue posible completar la venta.',
+      })
+    } finally {
+      set({ shopBusyKey: null })
     }
   },
 

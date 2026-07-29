@@ -47,5 +47,10 @@ export const claimQuest = (characterQuestId) =>
 export const getOfflineStatus = () => api.get('/offline/status')
 export const claimOfflineRewards = () => api.post('/offline/claim')
 export const touchOfflineActivity = () => api.post('/offline/touch')
+export const getShop = () => api.get('/shop')
+export const buyShopItem = (shopItemId, quantity = 1) =>
+  api.post('/shop/buy', { shopItemId, quantity })
+export const sellShopItem = (inventoryItemId, quantity = 1) =>
+  api.post('/shop/sell', { inventoryItemId, quantity })
 
 export default api

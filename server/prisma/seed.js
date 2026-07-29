@@ -80,6 +80,42 @@ async function main() {
     items.set(savedItem.name, savedItem)
   }
 
+  const shopData = [
+    ['Poción menor', 18, 5, sendero.id, 1],
+    ['Espada de aprendiz', 45, 12, sendero.id, 2],
+    ['Armadura de cuero', 70, 18, sendero.id, 3],
+    ['Botas ligeras', 85, 22, mina.id, 4],
+    ['Anillo del cazador', 110, 30, mina.id, 5],
+  ]
+  for (const [
+    name,
+    buyPrice,
+    sellPrice,
+    availableFromZoneId,
+    sortOrder,
+  ] of shopData) {
+    await prisma.shopItem.upsert({
+      where: { itemId: items.get(name).id },
+      update: {
+        buyPrice,
+        sellPrice,
+        stock: null,
+        availableFromZoneId,
+        enabled: true,
+        sortOrder,
+      },
+      create: {
+        itemId: items.get(name).id,
+        buyPrice,
+        sellPrice,
+        stock: null,
+        availableFromZoneId,
+        enabled: true,
+        sortOrder,
+      },
+    })
+  }
+
   const skillData = [
     {
       name: 'Ataque básico',
@@ -405,32 +441,22 @@ async function main() {
   })
 
   await prisma.inventoryItem.deleteMany({
-    where: {
-      characterId: character.id,
-      itemId: { notIn: inventoryItems.map(([name]) => items.get(name).id) },
-    },
+    where: { characterId: character.id },
   })
 
   for (const [name, quantity] of inventoryItems) {
     const item = items.get(name)
-    await prisma.inventoryItem.upsert({
-      where: {
-        characterId_itemId: {
-          characterId: character.id,
-          itemId: item.id,
-        },
-      },
-      update: {
-        quantity,
-        equipped: name === 'Espada de aprendiz',
-        slot: name === 'Espada de aprendiz' ? 'WEAPON' : null,
-      },
-      create: {
+    await prisma.inventoryItem.create({
+      data: {
         characterId: character.id,
         itemId: item.id,
-        quantity,
+        stackKey:
+          item.type === 'CONSUMABLE'
+            ? `${character.id}:${item.id}`
+            : null,
         equipped: name === 'Espada de aprendiz',
         slot: name === 'Espada de aprendiz' ? 'WEAPON' : null,
+        quantity,
       },
     })
   }
@@ -477,7 +503,7 @@ async function main() {
   }
 
   console.log(
-    'Seed completado: equipo, habilidades, 4 misiones, 2 zonas y 8 monstruos.',
+    'Seed completado: tienda, equipo, habilidades, 4 misiones, 2 zonas y 8 monstruos.',
   )
 }
 

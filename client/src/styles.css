@@ -960,9 +960,310 @@ h2 {
 .map-panel,
 .equipment-panel,
 .quest-panel,
-.offline-summary {
+.offline-summary,
+.shop-summary {
   padding: 18px;
   border-radius: 20px;
+}
+
+.shop-summary {
+  display: grid;
+  grid-template-columns: 44px 1fr auto;
+  align-items: center;
+  gap: 12px;
+  border-color: rgba(221, 185, 105, 0.18);
+  background:
+    radial-gradient(circle at 0 0, rgba(170, 120, 56, 0.14), transparent 42%),
+    rgba(16, 24, 21, 0.94);
+}
+
+.shop-portrait {
+  display: grid;
+  width: 44px;
+  height: 44px;
+  place-items: center;
+  border: 1px solid rgba(229, 195, 119, 0.3);
+  border-radius: 50%;
+  color: #f0d797;
+  background:
+    radial-gradient(circle at 50% 35%, #5f553f, #25261e 70%);
+  box-shadow: 0 0 22px rgba(202, 157, 72, 0.12);
+  font-family: Georgia, serif;
+  font-size: 19px;
+  font-weight: 900;
+}
+
+.shop-summary > div:nth-child(2) {
+  display: grid;
+  gap: 4px;
+}
+
+.shop-summary strong {
+  color: #efe5cf;
+  font-family: Georgia, serif;
+  font-size: 13px;
+}
+
+.shop-summary small {
+  color: #897f6a;
+  font-size: 8px;
+}
+
+.shop-summary > button {
+  padding: 9px 11px;
+  border: 1px solid rgba(232, 198, 119, 0.25);
+  border-radius: 9px;
+  color: #f1d791;
+  background: rgba(139, 99, 43, 0.17);
+  font-size: 9px;
+  font-weight: 900;
+}
+
+.shop-overlay {
+  position: fixed;
+  z-index: 42;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: rgba(4, 8, 7, 0.86);
+  backdrop-filter: blur(13px);
+  animation: offline-fade 200ms ease both;
+}
+
+.shop-modal {
+  width: min(760px, 100%);
+  max-height: min(760px, calc(100vh - 36px));
+  overflow: hidden;
+  border: 1px solid rgba(221, 188, 116, 0.22);
+  border-radius: 23px;
+  color: #e1e5da;
+  background:
+    radial-gradient(circle at 15% 0%, rgba(149, 103, 44, 0.16), transparent 38%),
+    linear-gradient(145deg, #17211d, #09110f 75%);
+  box-shadow: 0 35px 110px rgba(0, 0, 0, 0.68);
+  animation: offline-rise 300ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.shop-header {
+  position: relative;
+  display: grid;
+  grid-template-columns: 62px 1fr auto;
+  align-items: center;
+  gap: 15px;
+  padding: 22px 58px 18px 22px;
+  border-bottom: 1px solid rgba(219, 196, 145, 0.1);
+}
+
+.shop-portrait--large {
+  width: 62px;
+  height: 62px;
+  font-size: 25px;
+}
+
+.shop-header h2 {
+  margin: 4px 0 3px;
+  color: #f2ead8;
+  font-family: Georgia, serif;
+  font-size: 22px;
+}
+
+.shop-header p {
+  margin: 0;
+  color: #908878;
+  font-size: 9px;
+}
+
+.shop-gold {
+  display: grid;
+  gap: 4px;
+  min-width: 90px;
+  padding: 10px 13px;
+  border: 1px solid rgba(229, 195, 112, 0.15);
+  border-radius: 11px;
+  background: rgba(108, 78, 29, 0.13);
+  text-align: right;
+}
+
+.shop-gold small {
+  color: #837a67;
+  font-size: 8px;
+  text-transform: uppercase;
+}
+
+.shop-gold strong {
+  color: #f5d77f;
+  font-size: 14px;
+}
+
+.shop-close {
+  position: absolute;
+  top: 15px;
+  right: 15px;
+  width: 31px;
+  height: 31px;
+  border: 1px solid rgba(216, 209, 190, 0.11);
+  border-radius: 50%;
+  color: #968f80;
+  background: rgba(255, 255, 255, 0.035);
+  font-size: 19px;
+}
+
+.shop-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  padding: 11px 22px 0;
+}
+
+.shop-tabs button {
+  padding: 11px;
+  border: 0;
+  border-bottom: 1px solid rgba(213, 195, 153, 0.1);
+  color: #776f61;
+  background: transparent;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.shop-tabs button.active {
+  border-color: #d8b76b;
+  color: #f1d794;
+  background: linear-gradient(0deg, rgba(180, 129, 54, 0.1), transparent);
+}
+
+.shop-list {
+  display: grid;
+  gap: 9px;
+  max-height: 470px;
+  padding: 15px 22px;
+  overflow-y: auto;
+  scrollbar-color: #625336 transparent;
+  scrollbar-width: thin;
+}
+
+.shop-item {
+  display: grid;
+  grid-template-columns: 42px 1fr auto;
+  align-items: center;
+  gap: 11px;
+  padding: 11px;
+  border: 1px solid rgba(211, 205, 184, 0.1);
+  border-left: 3px solid rgba(210, 216, 202, 0.25);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.shop-item.rarity-rare {
+  border-left-color: #53a6ce;
+}
+
+.shop-item.rarity-epic {
+  border-left-color: #9c6bda;
+}
+
+.shop-item__icon {
+  display: grid;
+  width: 40px;
+  height: 40px;
+  place-items: center;
+  border-radius: 10px;
+  color: #d9c89d;
+  background: rgba(210, 178, 106, 0.09);
+  font-family: Georgia, serif;
+  font-size: 16px;
+  font-weight: 900;
+}
+
+.shop-item__body {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
+.shop-item__name {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.shop-item__name strong {
+  overflow: hidden;
+  color: #dce3d8;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.shop-item__name b {
+  color: #a8b4a8;
+  font-size: 10px;
+}
+
+.shop-item__meta {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: #718078;
+  font-size: 8px;
+}
+
+.shop-item__meta i {
+  color: #9c906f;
+  font-style: normal;
+}
+
+.shop-item__meta em {
+  padding: 2px 5px;
+  border-radius: 999px;
+  color: #d8bc77;
+  background: rgba(154, 111, 41, 0.18);
+  font-style: normal;
+}
+
+.shop-item__body > small {
+  color: #bc7474;
+  font-size: 8px;
+}
+
+.shop-item > button {
+  display: grid;
+  gap: 3px;
+  min-width: 82px;
+  padding: 8px 10px;
+  border: 1px solid rgba(221, 188, 111, 0.2);
+  border-radius: 9px;
+  color: #e7d39f;
+  background: rgba(123, 89, 37, 0.14);
+  font-size: 8px;
+  font-weight: 900;
+}
+
+.shop-item > button span {
+  color: #f1ca6c;
+  font-size: 10px;
+}
+
+.shop-item > button:disabled {
+  cursor: not-allowed;
+  filter: saturate(0.35);
+  opacity: 0.52;
+}
+
+.shop-empty {
+  padding: 35px 15px;
+  color: #7d8278;
+  font-size: 10px;
+  text-align: center;
+}
+
+.shop-footer {
+  padding: 11px 22px 15px;
+  border-top: 1px solid rgba(215, 203, 171, 0.08);
+  color: #6e7068;
+  font-size: 8px;
+  text-align: center;
 }
 
 .offline-summary {
@@ -2254,6 +2555,29 @@ h2 {
 
   .side-column {
     grid-template-columns: 1fr;
+  }
+
+  .shop-header {
+    grid-template-columns: 52px 1fr;
+  }
+
+  .shop-portrait--large {
+    width: 52px;
+    height: 52px;
+  }
+
+  .shop-gold {
+    grid-column: 1 / -1;
+    text-align: left;
+  }
+
+  .shop-item {
+    grid-template-columns: 38px 1fr;
+  }
+
+  .shop-item > button {
+    grid-column: 1 / -1;
+    grid-template-columns: 1fr 1fr;
   }
 
   .auth-overlay {

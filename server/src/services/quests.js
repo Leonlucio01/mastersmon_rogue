@@ -1,6 +1,7 @@
 import { prisma } from '../lib/prisma.js'
 import { recalculateCharacterStats } from './equipment.js'
 import { getCharacterInventory } from './gameData.js'
+import { addItemToInventory } from './inventory.js'
 import { serializeCharacter, serializeInventory } from '../utils/serializers.js'
 
 const questInclude = {
@@ -228,22 +229,12 @@ export async function claimCharacterQuest(character, characterQuestId) {
     })
 
     if (entry.quest.rewardItem && entry.quest.rewardItemQuantity > 0) {
-      await transaction.inventoryItem.upsert({
-        where: {
-          characterId_itemId: {
-            characterId: character.id,
-            itemId: entry.quest.rewardItem.id,
-          },
-        },
-        update: {
-          quantity: { increment: entry.quest.rewardItemQuantity },
-        },
-        create: {
-          characterId: character.id,
-          itemId: entry.quest.rewardItem.id,
-          quantity: entry.quest.rewardItemQuantity,
-        },
-      })
+      await addItemToInventory(
+        character.id,
+        entry.quest.rewardItem,
+        entry.quest.rewardItemQuantity,
+        transaction,
+      )
     }
 
     const [updatedCharacter, inventory, quests] = await Promise.all([

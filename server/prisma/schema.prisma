@@ -165,6 +165,7 @@ model Item {
   monsterDrops Monster[]       @relation("MonsterDrop")
   battleDrops  BattleLog[]     @relation("BattleDrop")
   questRewards Quest[]         @relation("QuestRewardItem")
+  shopListing  ShopItem?
   createdAt    DateTime        @default(now())
   updatedAt    DateTime        @updatedAt
 }
@@ -178,11 +179,12 @@ model InventoryItem {
   character   Character      @relation(fields: [characterId], references: [id], onDelete: Cascade)
   itemId      String
   item        Item           @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  stackKey    String?        @unique
   createdAt   DateTime       @default(now())
   updatedAt   DateTime       @updatedAt
 
-  @@unique([characterId, itemId])
   @@unique([characterId, slot])
+  @@index([characterId, itemId])
 }
 
 model Zone {
@@ -198,8 +200,27 @@ model Zone {
   monsters          Monster[]
   progress          CharacterProgress[]
   questTargets      Quest[]             @relation("QuestTargetZone")
+  shopItems         ShopItem[]
   createdAt         DateTime            @default(now())
   updatedAt         DateTime            @updatedAt
+}
+
+model ShopItem {
+  id                  String   @id @default(cuid())
+  itemId              String   @unique
+  item                Item     @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  buyPrice            Int
+  sellPrice           Int
+  stock               Int?
+  availableFromZoneId String?
+  availableFromZone   Zone?    @relation(fields: [availableFromZoneId], references: [id], onDelete: SetNull)
+  enabled             Boolean  @default(true)
+  sortOrder           Int      @default(0)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@index([enabled, sortOrder])
+  @@index([availableFromZoneId])
 }
 
 model Monster {

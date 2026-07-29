@@ -2,6 +2,7 @@ import { prisma } from '../lib/prisma.js'
 import { serializeCharacter, serializeInventory } from '../utils/serializers.js'
 import { recalculateCharacterStats } from './equipment.js'
 import { getCharacterInventory } from './gameData.js'
+import { addItemToInventory } from './inventory.js'
 
 export const OFFLINE_ATTEMPT_SECONDS = 2 * 60
 export const OFFLINE_MAX_SECONDS = 4 * 60 * 60
@@ -358,20 +359,17 @@ export async function claimOfflineRewards(
 
     const drops = normalizeDrops(pending.drops)
     for (const drop of drops) {
-      await transaction.inventoryItem.upsert({
-        where: {
-          characterId_itemId: {
-            characterId: character.id,
-            itemId: drop.itemId,
-          },
-        },
-        update: { quantity: { increment: drop.quantity } },
-        create: {
-          characterId: character.id,
-          itemId: drop.itemId,
-          quantity: drop.quantity,
-        },
+      const item = await transaction.item.findUnique({
+        where: { id: drop.itemId },
       })
+      if (item) {
+        await addItemToInventory(
+          character.id,
+          item,
+          drop.quantity,
+          transaction,
+        )
+      }
     }
 
     const [updatedCharacter, inventory] = await Promise.all([

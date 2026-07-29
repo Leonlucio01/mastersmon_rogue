@@ -2,6 +2,7 @@ import { prisma } from '../lib/prisma.js'
 import { getCharacterInventory } from './gameData.js'
 import { recalculateCharacterStats } from './equipment.js'
 import { getCurrentMapState } from './mapProgress.js'
+import { addItemToInventory } from './inventory.js'
 import { recordMonsterDefeat } from './quests.js'
 import {
   BASIC_ATTACK_NAME,
@@ -187,20 +188,7 @@ export async function executeCombatAction(character, skillId) {
     )
 
     if (droppedItem) {
-      await transaction.inventoryItem.upsert({
-        where: {
-          characterId_itemId: {
-            characterId: character.id,
-            itemId: droppedItem.id,
-          },
-        },
-        update: { quantity: { increment: 1 } },
-        create: {
-          characterId: character.id,
-          itemId: droppedItem.id,
-          quantity: 1,
-        },
-      })
+      await addItemToInventory(character.id, droppedItem, 1, transaction)
     }
 
     await transaction.battleLog.create({
