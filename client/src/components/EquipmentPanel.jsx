@@ -29,7 +29,7 @@ export default function EquipmentPanel({ equipment, onUnequip, updatingItemId })
               <span className="slot-glyph">{glyph}</span>
               <div>
                 <small>{label}</small>
-                <strong>{item?.name ?? 'Vacío'}</strong>
+                <strong>{item?.displayName ?? item?.name ?? 'Vacío'}</strong>
               </div>
               {item && (
                 <button

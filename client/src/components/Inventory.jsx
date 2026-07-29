@@ -85,7 +85,7 @@ export default function Inventory({
               <span className="item-icon">{item.name.charAt(0)}</span>
               <div className="item-details">
                 <div className="item-name-row">
-                  <strong>{item.name}</strong>
+                  <strong>{item.displayName ?? item.name}</strong>
                   <b>×{item.quantity}</b>
                 </div>
                 <div className="item-meta">

@@ -171,17 +171,18 @@ model Item {
 }
 
 model InventoryItem {
-  id          String         @id @default(cuid())
-  quantity    Int            @default(1)
-  equipped    Boolean        @default(false)
-  slot        EquipmentSlot?
-  characterId String
-  character   Character      @relation(fields: [characterId], references: [id], onDelete: Cascade)
-  itemId      String
-  item        Item           @relation(fields: [itemId], references: [id], onDelete: Cascade)
-  stackKey    String?        @unique
-  createdAt   DateTime       @default(now())
-  updatedAt   DateTime       @updatedAt
+  id           String         @id @default(cuid())
+  quantity     Int            @default(1)
+  equipped     Boolean        @default(false)
+  slot         EquipmentSlot?
+  upgradeLevel Int            @default(0)
+  characterId  String
+  character    Character      @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  itemId       String
+  item         Item           @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  stackKey     String?        @unique
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
 
   @@unique([characterId, slot])
   @@index([characterId, itemId])

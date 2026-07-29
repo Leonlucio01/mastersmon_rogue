@@ -1,3 +1,9 @@
+import {
+  getBaseItemBonuses,
+  getUpgradeInvestment,
+  getUpgradedItemBonuses,
+} from '../services/equipmentBonuses.js'
+
 export function serializeCharacter(character) {
   if (!character) return null
 
@@ -34,30 +40,36 @@ export function serializeCharacter(character) {
 }
 
 export function serializeInventory(items) {
-  return items.map(({ item, quantity, equipped, slot, id }) => ({
-    inventoryItemId: id,
-    id: item.id,
-    name: item.name,
-    description: item.description,
-    type: item.type,
-    itemType: item.type.toLowerCase(),
-    rarity: item.rarity.toLowerCase(),
-    value: item.value,
-    power: item.power,
-    healAmount: item.healAmount,
-    bonuses: {
-      attack: item.attackBonus,
-      defense: item.defenseBonus,
-      health: item.healthBonus,
-      crit: item.critBonus,
-      evasion: item.evasionBonus,
-      agility: item.agilityBonus,
-      power: item.powerBonus,
-    },
-    quantity,
-    equipped,
-    slot: slot?.toLowerCase() ?? null,
-  }))
+  return items.map(
+    ({
+      item,
+      quantity,
+      equipped,
+      slot,
+      id,
+      upgradeLevel = 0,
+    }) => ({
+      inventoryItemId: id,
+      id: item.id,
+      name: item.name,
+      displayName:
+        upgradeLevel > 0 ? `${item.name} +${upgradeLevel}` : item.name,
+      description: item.description,
+      type: item.type,
+      itemType: item.type.toLowerCase(),
+      rarity: item.rarity.toLowerCase(),
+      value: item.value,
+      power: item.power,
+      healAmount: item.healAmount,
+      upgradeLevel,
+      upgradeInvestment: getUpgradeInvestment(upgradeLevel),
+      baseBonuses: getBaseItemBonuses(item),
+      bonuses: getUpgradedItemBonuses(item, upgradeLevel),
+      quantity,
+      equipped,
+      slot: slot?.toLowerCase() ?? null,
+    }),
+  )
 }
 
 export function serializeMonster(monster) {

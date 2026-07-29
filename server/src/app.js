@@ -13,6 +13,7 @@ import offlineRoutes from './routes/offline.routes.js'
 import skillsRoutes from './routes/skills.routes.js'
 import questsRoutes from './routes/quests.routes.js'
 import shopRoutes from './routes/shop.routes.js'
+import upgradeRoutes from './routes/upgrade.routes.js'
 
 const app = express()
 const port = Number(process.env.PORT) || 4000
@@ -37,6 +38,7 @@ app.use('/api/offline', offlineRoutes)
 app.use('/api/skills', skillsRoutes)
 app.use('/api/quests', questsRoutes)
 app.use('/api/shop', shopRoutes)
+app.use('/api/upgrade', upgradeRoutes)
 
 app.use((request, response) => {
   response.status(404).json({

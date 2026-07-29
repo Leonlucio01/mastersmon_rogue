@@ -7,6 +7,7 @@ import OfflineRewards from '../components/OfflineRewards'
 import QuestPanel from '../components/QuestPanel'
 import ShopPanel from '../components/ShopPanel'
 import SkillBar from '../components/SkillBar'
+import UpgradePanel from '../components/UpgradePanel'
 import GameScene from '../game/GameScene'
 import {
   isCombatSoundEnabled,
@@ -83,6 +84,11 @@ export default function Game() {
     isShopLoading,
     shopBusyKey,
     shopNotice,
+    upgrade,
+    upgradeOpen,
+    isUpgradeLoading,
+    upgradingItemId,
+    upgradeNotice,
     claimingQuestId,
     rewards,
     canAdvance,
@@ -104,6 +110,9 @@ export default function Game() {
     closeShop,
     buyShopItem,
     sellShopItem,
+    openUpgrade,
+    closeUpgrade,
+    upgradeEquipment,
     equipItem,
     unequipItem,
   } = useGameStore()
@@ -201,6 +210,16 @@ export default function Game() {
         >
           <span>◉</span>
           {shopNotice.message}
+        </div>
+      )}
+
+      {upgradeNotice && (
+        <div
+          key={upgradeNotice.id}
+          className="quest-notice quest-notice--claimed"
+        >
+          <span>✦</span>
+          {upgradeNotice.message}
         </div>
       )}
 
@@ -400,6 +419,15 @@ export default function Game() {
             onClose={closeShop}
             onBuy={buyShopItem}
             onSell={sellShopItem}
+          />
+          <UpgradePanel
+            upgrade={upgrade}
+            isOpen={upgradeOpen}
+            isLoading={isUpgradeLoading}
+            upgradingItemId={upgradingItemId}
+            onOpen={openUpgrade}
+            onClose={closeUpgrade}
+            onUpgrade={upgradeEquipment}
           />
           <OfflineRewards
             status={offlineStatus}

@@ -14,6 +14,7 @@ import {
   getQuests,
   getSkills,
   getShop,
+  getUpgrade,
   nextMapMonster,
   restCharacter,
   selectMapZone,
@@ -21,6 +22,7 @@ import {
   unequipItem as unequipItemRequest,
   useBattleSkill,
   useInventoryItem,
+  upgradeEquipment as upgradeEquipmentRequest,
 } from '../services/api'
 
 const fallbackCharacter = {
@@ -41,7 +43,7 @@ const fallbackCharacter = {
 
 const fallbackInventory = [
   { inventoryItemId: 'demo-potion', id: 'potion', name: 'Poción menor', quantity: 2, type: 'CONSUMABLE', itemType: 'consumable', rarity: 'common', equipped: false, healAmount: 30, bonuses: {} },
-  { inventoryItemId: 'demo-sword', id: 'sword', name: 'Espada de aprendiz', quantity: 1, type: 'WEAPON', itemType: 'weapon', rarity: 'common', equipped: true, slot: 'weapon', bonuses: { attack: 4, power: 5 } },
+  { inventoryItemId: 'demo-sword', id: 'sword', name: 'Espada de aprendiz', displayName: 'Espada de aprendiz', quantity: 1, type: 'WEAPON', itemType: 'weapon', rarity: 'common', equipped: true, slot: 'weapon', upgradeLevel: 0, baseBonuses: { attack: 4, power: 5 }, bonuses: { attack: 4, power: 5 } },
 ]
 
 const emptyEquipment = {
@@ -192,6 +194,12 @@ const emptyShop = {
   sellableInventory: [],
 }
 
+const emptyUpgrade = {
+  gold: fallbackCharacter.gold,
+  maxUpgradeLevel: 5,
+  items: [],
+}
+
 function combatUpdate(result, state) {
   const skillName = result.skillName ?? result.skill?.name ?? state.activeSkillName
   return {
@@ -301,6 +309,11 @@ export const useGameStore = create((set, get) => ({
   isShopLoading: false,
   shopBusyKey: null,
   shopNotice: null,
+  upgrade: emptyUpgrade,
+  upgradeOpen: false,
+  isUpgradeLoading: false,
+  upgradingItemId: null,
+  upgradeNotice: null,
   claimingQuestId: null,
   rewards: null,
   canAdvance: false,
@@ -319,6 +332,7 @@ export const useGameStore = create((set, get) => ({
       questNotice: null,
       offlineNotice: null,
       shopNotice: null,
+      upgradeNotice: null,
       unlockNotice: '',
     })
 
@@ -446,6 +460,52 @@ export const useGameStore = create((set, get) => ({
   },
 
   closeShop: () => set({ shopOpen: false }),
+
+  openUpgrade: async () => {
+    if (get().isUpgradeLoading) return
+    set({ upgradeOpen: true, isUpgradeLoading: true })
+    try {
+      const response = await getUpgrade()
+      set({ upgrade: response.data })
+    } catch (error) {
+      set({
+        message:
+          error.response?.data?.error ??
+          'No fue posible abrir la forja de mejora.',
+      })
+    } finally {
+      set({ isUpgradeLoading: false })
+    }
+  },
+
+  closeUpgrade: () => set({ upgradeOpen: false }),
+
+  upgradeEquipment: async (inventoryItemId) => {
+    if (get().upgradingItemId) return
+    set({ upgradingItemId: inventoryItemId })
+    try {
+      const response = await upgradeEquipmentRequest(inventoryItemId)
+      set({
+        upgrade: response.data,
+        character: response.data.character,
+        inventory: response.data.inventory,
+        equipment: response.data.equipment,
+        upgradeNotice: {
+          message: `${response.data.transaction.itemName} alcanzó +${response.data.transaction.toLevel} · −${response.data.transaction.cost} oro`,
+          id: Date.now(),
+        },
+        message: response.data.message,
+      })
+    } catch (error) {
+      set({
+        message:
+          error.response?.data?.error ??
+          'No fue posible mejorar este equipo.',
+      })
+    } finally {
+      set({ upgradingItemId: null })
+    }
+  },
 
   buyShopItem: async (shopItemId) => {
     if (get().shopBusyKey) return

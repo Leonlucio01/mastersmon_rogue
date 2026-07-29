@@ -5,6 +5,7 @@ import {
 } from '../utils/serializers.js'
 import { getEquipmentState } from './equipment.js'
 import { addItemToInventory, isStackableItem } from './inventory.js'
+import { getUpgradeSellBonus } from './equipmentBonuses.js'
 
 function shopError(message, status = 400) {
   return Object.assign(new Error(message), { status })
@@ -55,7 +56,9 @@ function serializeSellableInventory(inventory) {
     .filter(({ item }) => item.shopListing?.enabled)
     .map((entry) => ({
       ...serializeInventory([entry])[0],
-      sellPrice: entry.item.shopListing.sellPrice,
+      sellPrice:
+        entry.item.shopListing.sellPrice +
+        getUpgradeSellBonus(entry.upgradeLevel),
       canSell: !entry.equipped && entry.quantity > 0,
       sellBlockedReason: entry.equipped
         ? 'Desequipa este objeto antes de venderlo.'
@@ -233,8 +236,14 @@ export async function sellInventoryItem(
       throw shopError('El equipo se vende una pieza a la vez.')
     }
 
-    soldItemName = entry.item.name
-    totalGold = entry.item.shopListing.sellPrice * quantity
+    soldItemName =
+      entry.upgradeLevel > 0
+        ? `${entry.item.name} +${entry.upgradeLevel}`
+        : entry.item.name
+    const unitSellPrice =
+      entry.item.shopListing.sellPrice +
+      getUpgradeSellBonus(entry.upgradeLevel)
+    totalGold = unitSellPrice * quantity
     const remainingQuantity = entry.quantity - quantity
 
     if (remainingQuantity <= 0) {

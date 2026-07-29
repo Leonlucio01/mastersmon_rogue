@@ -52,5 +52,8 @@ export const buyShopItem = (shopItemId, quantity = 1) =>
   api.post('/shop/buy', { shopItemId, quantity })
 export const sellShopItem = (inventoryItemId, quantity = 1) =>
   api.post('/shop/sell', { inventoryItemId, quantity })
+export const getUpgrade = () => api.get('/upgrade')
+export const upgradeEquipment = (inventoryItemId) =>
+  api.post('/upgrade/equipment', { inventoryItemId })
 
 export default api

@@ -1,5 +1,9 @@
 import { prisma } from '../lib/prisma.js'
 import { serializeCharacter, serializeInventory } from '../utils/serializers.js'
+import {
+  EQUIPABLE_ITEM_TYPES,
+  getUpgradedItemBonuses,
+} from './equipmentBonuses.js'
 
 export const EQUIPMENT_SLOTS = [
   'WEAPON',
@@ -11,14 +15,12 @@ export const EQUIPMENT_SLOTS = [
   'ARTIFACT',
 ]
 
-const equipableTypes = new Set(EQUIPMENT_SLOTS)
-
 function roundRate(value) {
   return Math.round(value * 10000) / 10000
 }
 
 export function isEquipableItem(item) {
-  return equipableTypes.has(item.type)
+  return EQUIPABLE_ITEM_TYPES.has(item.type)
 }
 
 export function getSlotForItem(item) {
@@ -41,15 +43,21 @@ export async function recalculateCharacterStats(characterId, client = prisma) {
   if (!character) throw new Error('No existe el personaje.')
 
   const totals = equippedItems.reduce(
-    (sum, entry) => ({
-      attack: sum.attack + entry.item.attackBonus,
-      defense: sum.defense + entry.item.defenseBonus,
-      health: sum.health + entry.item.healthBonus,
-      crit: sum.crit + entry.item.critBonus,
-      evasion: sum.evasion + entry.item.evasionBonus,
-      agility: sum.agility + entry.item.agilityBonus,
-      power: sum.power + entry.item.powerBonus,
-    }),
+    (sum, entry) => {
+      const bonuses = getUpgradedItemBonuses(
+        entry.item,
+        entry.upgradeLevel,
+      )
+      return {
+        attack: sum.attack + bonuses.attack,
+        defense: sum.defense + bonuses.defense,
+        health: sum.health + bonuses.health,
+        crit: sum.crit + bonuses.crit,
+        evasion: sum.evasion + bonuses.evasion,
+        agility: sum.agility + bonuses.agility,
+        power: sum.power + bonuses.power,
+      }
+    },
     { attack: 0, defense: 0, health: 0, crit: 0, evasion: 0, agility: 0, power: 0 },
   )
 

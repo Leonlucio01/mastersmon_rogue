@@ -43,7 +43,7 @@ function ShopItemCard({
       <span className="shop-item__icon">{item.name.charAt(0)}</span>
       <div className="shop-item__body">
         <div className="shop-item__name">
-          <strong>{item.name}</strong>
+          <strong>{item.displayName ?? item.name}</strong>
           {!buying && <b>×{item.quantity}</b>}
         </div>
         <div className="shop-item__meta">
