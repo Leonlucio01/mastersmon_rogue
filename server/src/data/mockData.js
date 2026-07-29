@@ -4,27 +4,27 @@ export const character = {
   class: 'Vanguardia',
   level: 1,
   experience: 0,
-  gold: 125,
-  gems: 8,
-  energy: 74,
-  maxEnergy: 100,
-  attack: 18,
+  gold: 35,
+  gems: 2,
+  energy: 80,
+  maxEnergy: 80,
+  attack: 16,
   defense: 4,
-  critRate: 0.1,
+  critRate: 0.08,
   evasion: 0.05,
-  agility: 11,
-  power: 18,
-  health: 100,
-  maxHealth: 100,
+  agility: 10,
+  power: 15,
+  health: 110,
+  maxHealth: 110,
 }
 
 export const inventory = [
   {
     id: 'potion',
     name: 'Poción menor',
-    description: 'Restaura 25 puntos de vida.',
+    description: 'Restaura 30 puntos de vida.',
     type: 'CONSUMABLE',
-    quantity: 3,
+    quantity: 2,
   },
   {
     id: 'sword',
@@ -33,24 +33,17 @@ export const inventory = [
     type: 'WEAPON',
     quantity: 1,
   },
-  {
-    id: 'herb',
-    name: 'Hierba lunar',
-    description: 'Ingrediente alquímico de brillo tenue.',
-    type: 'MATERIAL',
-    quantity: 4,
-  },
 ]
 
 export const battle = {
   enemy: {
     id: 'moss-slime',
     name: 'Slime musgoso',
-    maxHealth: 45,
-    health: 45,
+    maxHealth: 32,
+    health: 32,
     attack: 6,
     power: 6,
-    defense: 2,
+    defense: 1,
     level: 1,
   },
 }

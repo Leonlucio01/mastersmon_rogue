@@ -26,13 +26,17 @@ router.post('/rest', async (request, response, next) => {
 
     const restedCharacter = await prisma.character.update({
       where: { id: currentCharacter.id },
-      data: { health: currentCharacter.maxHealth },
+      data: {
+        health: currentCharacter.maxHealth,
+        energy: currentCharacter.maxEnergy,
+      },
     })
 
     response.json({
       character: serializeCharacter(restedCharacter),
       healedAmount: currentCharacter.maxHealth - currentCharacter.health,
-      message: `${currentCharacter.name} ha descansado y recuperó toda su vida.`,
+      recoveredEnergy: currentCharacter.maxEnergy - currentCharacter.energy,
+      message: `${currentCharacter.name} ha descansado y recuperó toda su vida y energía.`,
       persistence: 'database',
     })
   } catch (error) {

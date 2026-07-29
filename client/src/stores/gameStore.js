@@ -23,21 +23,20 @@ const fallbackCharacter = {
   class: 'Vanguardia',
   level: 1,
   experience: 0,
-  gold: 125,
-  gems: 8,
-  energy: 74,
-  maxEnergy: 100,
-  power: 18,
-  attack: 18,
+  gold: 35,
+  gems: 2,
+  energy: 80,
+  maxEnergy: 80,
+  power: 15,
+  attack: 16,
   defense: 4,
-  health: 100,
-  maxHealth: 100,
+  health: 110,
+  maxHealth: 110,
 }
 
 const fallbackInventory = [
-  { inventoryItemId: 'demo-potion', id: 'potion', name: 'Poción menor', quantity: 3, type: 'CONSUMABLE', itemType: 'consumable', rarity: 'common', equipped: false, healAmount: 25, bonuses: {} },
-  { inventoryItemId: 'demo-sword', id: 'sword', name: 'Espada de aprendiz', quantity: 1, type: 'WEAPON', itemType: 'weapon', rarity: 'common', equipped: true, slot: 'weapon', bonuses: { attack: 5, power: 5 } },
-  { inventoryItemId: 'demo-herb', id: 'herb', name: 'Hierba lunar', quantity: 4, type: 'MATERIAL', itemType: 'material', rarity: 'common', equipped: false, bonuses: {} },
+  { inventoryItemId: 'demo-potion', id: 'potion', name: 'Poción menor', quantity: 2, type: 'CONSUMABLE', itemType: 'consumable', rarity: 'common', equipped: false, healAmount: 30, bonuses: {} },
+  { inventoryItemId: 'demo-sword', id: 'sword', name: 'Espada de aprendiz', quantity: 1, type: 'WEAPON', itemType: 'weapon', rarity: 'common', equipped: true, slot: 'weapon', bonuses: { attack: 4, power: 5 } },
 ]
 
 const emptyEquipment = {
@@ -55,9 +54,9 @@ const fallbackEnemy = {
   name: 'Slime musgoso',
   species: 'Slime',
   level: 1,
-  health: 45,
-  maxHealth: 45,
-  defense: 2,
+  health: 32,
+  maxHealth: 32,
+  defense: 1,
   order: 1,
   isBoss: false,
 }
@@ -90,8 +89,8 @@ const fallbackZones = [
     totalMonsters: 4,
     monsters: [
       { id: 'demo-1', name: 'Slime musgoso', order: 1, isBoss: false },
-      { id: 'demo-2', name: 'Colmillo joven', order: 2, isBoss: false },
-      { id: 'demo-3', name: 'Espora errante', order: 3, isBoss: false },
+      { id: 'demo-2', name: 'Lobo joven', order: 2, isBoss: false },
+      { id: 'demo-3', name: 'Goblin errante', order: 3, isBoss: false },
       { id: 'demo-4', name: 'Guardián de Raíz', order: 4, isBoss: true },
     ],
   },
@@ -100,8 +99,8 @@ const fallbackZones = [
     name: 'Mina Umbría',
     description: 'Galerías olvidadas bajo la montaña.',
     order: 2,
-    requiredLevel: 2,
-    requiredPower: 18,
+    requiredLevel: 3,
+    requiredPower: 22,
     unlocked: false,
     available: false,
     meetsRequirements: false,
@@ -111,18 +110,18 @@ const fallbackZones = [
     totalMonsters: 4,
     monsters: [
       { id: 'demo-5', name: 'Murciélago de hollín', order: 1, isBoss: false },
-      { id: 'demo-6', name: 'Minero espectral', order: 2, isBoss: false },
-      { id: 'demo-7', name: 'Escarabajo férreo', order: 3, isBoss: false },
-      { id: 'demo-8', name: 'Capataz Umbrío', order: 4, isBoss: true },
+      { id: 'demo-6', name: 'Minero corrupto', order: 2, isBoss: false },
+      { id: 'demo-7', name: 'Araña de cueva', order: 3, isBoss: false },
+      { id: 'demo-8', name: 'Gólem Umbrío', order: 4, isBoss: true },
     ],
   },
 ]
 
 const fallbackSkills = [
   { id: 'basic', name: 'Ataque básico', description: 'Golpe fiable.', skillType: 'basic', damageMultiplier: 1, critBonus: 0, energyCost: 0, cooldownTurns: 0, cooldownRemaining: 0, requiredLevel: 1, icon: '⚔', evasionBonus: 0, durationTurns: 0, activeTurns: 0 },
-  { id: 'swift', name: 'Corte veloz', description: 'Ataque rápido.', skillType: 'damage', damageMultiplier: 1.2, critBonus: 0, energyCost: 12, cooldownTurns: 1, cooldownRemaining: 0, requiredLevel: 1, icon: '≋', evasionBonus: 0, durationTurns: 0, activeTurns: 0 },
-  { id: 'shadow', name: 'Golpe sombrío', description: 'Golpe de alto daño.', skillType: 'damage', damageMultiplier: 1.8, critBonus: 0.2, energyCost: 28, cooldownTurns: 3, cooldownRemaining: 0, requiredLevel: 1, icon: '☾', evasionBonus: 0, durationTurns: 0, activeTurns: 0 },
-  { id: 'evade', name: 'Paso evasivo', description: 'Aumenta la evasión.', skillType: 'buff', damageMultiplier: 0, critBonus: 0, energyCost: 14, cooldownTurns: 3, cooldownRemaining: 0, requiredLevel: 1, icon: '◇', evasionBonus: 0.3, durationTurns: 2, activeTurns: 0 },
+  { id: 'swift', name: 'Corte veloz', description: 'Ataque rápido.', skillType: 'damage', damageMultiplier: 1.2, critBonus: 0, energyCost: 10, cooldownTurns: 1, cooldownRemaining: 0, requiredLevel: 1, icon: '≋', evasionBonus: 0, durationTurns: 0, activeTurns: 0 },
+  { id: 'shadow', name: 'Golpe sombrío', description: 'Golpe de alto daño.', skillType: 'damage', damageMultiplier: 1.8, critBonus: 0.2, energyCost: 24, cooldownTurns: 3, cooldownRemaining: 0, requiredLevel: 1, icon: '☾', evasionBonus: 0, durationTurns: 0, activeTurns: 0 },
+  { id: 'evade', name: 'Paso evasivo', description: 'Aumenta la evasión.', skillType: 'buff', damageMultiplier: 0, critBonus: 0, energyCost: 12, cooldownTurns: 3, cooldownRemaining: 0, requiredLevel: 1, icon: '◇', evasionBonus: 0.3, durationTurns: 2, activeTurns: 0 },
 ]
 
 const fallbackQuests = [
@@ -137,8 +136,8 @@ const fallbackQuests = [
     status: 'in_progress',
     isMainQuest: true,
     reward: {
-      gold: 45,
-      experience: 45,
+      gold: 30,
+      experience: 30,
       item: { name: 'Poción menor', quantity: 2 },
     },
   },
@@ -153,8 +152,8 @@ const fallbackQuests = [
     status: 'in_progress',
     isMainQuest: true,
     reward: {
-      gold: 100,
-      experience: 90,
+      gold: 75,
+      experience: 60,
       item: { name: 'Anillo del cazador', quantity: 1 },
     },
   },
