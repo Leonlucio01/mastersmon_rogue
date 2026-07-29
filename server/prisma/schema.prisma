@@ -44,6 +44,17 @@ enum SkillType {
   BUFF
 }
 
+enum QuestType {
+  MAIN
+  ZONE
+}
+
+enum QuestTargetType {
+  MONSTER_KILL
+  ZONE_ENTER
+  ZONE_KILL
+}
+
 model User {
   id           String     @id @default(cuid())
   email        String     @unique
@@ -87,6 +98,7 @@ model Character {
   inventoryItems      InventoryItem[]
   battleLogs          BattleLog[]
   skills              CharacterSkill[]
+  quests              CharacterQuest[]
   progress            CharacterProgress[]
   createdAt           DateTime            @default(now())
   updatedAt           DateTime            @updatedAt
@@ -145,6 +157,7 @@ model Item {
   inventory    InventoryItem[]
   monsterDrops Monster[]       @relation("MonsterDrop")
   battleDrops  BattleLog[]     @relation("BattleDrop")
+  questRewards Quest[]         @relation("QuestRewardItem")
   createdAt    DateTime        @default(now())
   updatedAt    DateTime        @updatedAt
 }
@@ -177,34 +190,78 @@ model Zone {
   characters        Character[]
   monsters          Monster[]
   progress          CharacterProgress[]
+  questTargets      Quest[]             @relation("QuestTargetZone")
   createdAt         DateTime            @default(now())
   updatedAt         DateTime            @updatedAt
 }
 
 model Monster {
-  id         String      @id @default(cuid())
-  name       String
-  species    String
-  level      Int         @default(1)
-  health     Int
-  maxHealth  Int
-  attack     Int         @default(1)
-  power      Int
-  defense    Int         @default(0)
-  rewardGold Int         @default(0)
-  rewardExp  Int         @default(0)
-  dropChance Float       @default(0)
-  sortOrder  Int         @default(0)
-  isBoss     Boolean     @default(false)
-  dropItemId String?
-  dropItem   Item?       @relation("MonsterDrop", fields: [dropItemId], references: [id], onDelete: SetNull)
-  zoneId     String
-  zone       Zone        @relation(fields: [zoneId], references: [id], onDelete: Cascade)
-  battleLogs BattleLog[]
-  createdAt  DateTime    @default(now())
-  updatedAt  DateTime    @updatedAt
+  id           String      @id @default(cuid())
+  name         String
+  species      String
+  level        Int         @default(1)
+  health       Int
+  maxHealth    Int
+  attack       Int         @default(1)
+  power        Int
+  defense      Int         @default(0)
+  rewardGold   Int         @default(0)
+  rewardExp    Int         @default(0)
+  dropChance   Float       @default(0)
+  sortOrder    Int         @default(0)
+  isBoss       Boolean     @default(false)
+  dropItemId   String?
+  dropItem     Item?       @relation("MonsterDrop", fields: [dropItemId], references: [id], onDelete: SetNull)
+  zoneId       String
+  zone         Zone        @relation(fields: [zoneId], references: [id], onDelete: Cascade)
+  battleLogs   BattleLog[]
+  questTargets Quest[]     @relation("QuestTargetMonster")
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
 
   @@unique([name, zoneId])
+}
+
+model Quest {
+  id                 String           @id @default(cuid())
+  title              String           @unique
+  description        String
+  questType          QuestType
+  targetType         QuestTargetType
+  targetMonsterId    String?
+  targetMonster      Monster?         @relation("QuestTargetMonster", fields: [targetMonsterId], references: [id], onDelete: SetNull)
+  targetZoneId       String?
+  targetZone         Zone?            @relation("QuestTargetZone", fields: [targetZoneId], references: [id], onDelete: SetNull)
+  requiredAmount     Int              @default(1)
+  rewardGold         Int              @default(0)
+  rewardExp          Int              @default(0)
+  rewardItemId       String?
+  rewardItem         Item?            @relation("QuestRewardItem", fields: [rewardItemId], references: [id], onDelete: SetNull)
+  rewardItemQuantity Int              @default(0)
+  sortOrder          Int              @default(0)
+  isMainQuest        Boolean          @default(false)
+  characters         CharacterQuest[]
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+
+  @@index([targetMonsterId])
+  @@index([targetZoneId])
+}
+
+model CharacterQuest {
+  id          String    @id @default(cuid())
+  characterId String
+  character   Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  questId     String
+  quest       Quest     @relation(fields: [questId], references: [id], onDelete: Cascade)
+  progress    Int       @default(0)
+  completed   Boolean   @default(false)
+  claimed     Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([characterId, questId])
+  @@index([characterId, completed, claimed])
 }
 
 model CharacterProgress {

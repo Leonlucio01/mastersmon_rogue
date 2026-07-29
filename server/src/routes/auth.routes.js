@@ -52,6 +52,7 @@ router.post('/register', async (request, response, next) => {
     const starterSkills = await prisma.skill.findMany({
       where: { requiredLevel: { lte: 1 } },
     })
+    const starterQuests = await prisma.quest.findMany()
     const passwordHash = await bcrypt.hash(password, 12)
     const user = await prisma.user.create({
       data: {
@@ -94,6 +95,11 @@ router.post('/register', async (request, response, next) => {
             skills: {
               create: starterSkills.map((skill) => ({
                 skillId: skill.id,
+              })),
+            },
+            quests: {
+              create: starterQuests.map((quest) => ({
+                questId: quest.id,
               })),
             },
           },

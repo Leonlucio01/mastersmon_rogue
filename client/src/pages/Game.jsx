@@ -3,6 +3,7 @@ import Hud from '../components/Hud'
 import EquipmentPanel from '../components/EquipmentPanel'
 import Inventory from '../components/Inventory'
 import MapPanel from '../components/MapPanel'
+import QuestPanel from '../components/QuestPanel'
 import SkillBar from '../components/SkillBar'
 import GameScene from '../game/GameScene'
 import {
@@ -47,6 +48,7 @@ export default function Game() {
     inventory,
     equipment,
     skills,
+    quests,
     activeEffects,
     enemy,
     zones,
@@ -68,6 +70,8 @@ export default function Game() {
     actionKey,
     combatEvent,
     healEvent,
+    questNotice,
+    claimingQuestId,
     rewards,
     canAdvance,
     zoneComplete,
@@ -79,6 +83,7 @@ export default function Game() {
     useItem,
     advanceEnemy,
     selectZone,
+    claimQuest,
     equipItem,
     unequipItem,
   } = useGameStore()
@@ -121,6 +126,16 @@ export default function Game() {
         onLogin={openAuth}
         onLogout={sessionLogout}
       />
+
+      {questNotice && (
+        <div
+          key={questNotice.id}
+          className={`quest-notice quest-notice--${questNotice.type}`}
+        >
+          <span>✦</span>
+          {questNotice.message}
+        </div>
+      )}
 
       <section className="game-layout">
         <div className="world-card">
@@ -315,6 +330,11 @@ export default function Game() {
             onSelect={selectZone}
             isSelecting={isSelectingZone}
             unlockNotice={unlockNotice}
+          />
+          <QuestPanel
+            quests={quests}
+            onClaim={claimQuest}
+            claimingQuestId={claimingQuestId}
           />
           <EquipmentPanel
             equipment={equipment}

@@ -2,6 +2,7 @@ import { prisma } from '../lib/prisma.js'
 import { getCharacterInventory } from './gameData.js'
 import { recalculateCharacterStats } from './equipment.js'
 import { getCurrentMapState } from './mapProgress.js'
+import { recordMonsterDefeat } from './quests.js'
 import {
   BASIC_ATTACK_NAME,
   ensureCharacterSkills,
@@ -221,6 +222,10 @@ export async function executeCombatAction(character, skillId) {
       },
     })
 
+    const questProgress = defeated
+      ? await recordMonsterDefeat(character, monster, transaction)
+      : null
+
     const updatedSkills = await updateSkillTurns(
       characterSkills,
       selected,
@@ -259,6 +264,7 @@ export async function executeCombatAction(character, skillId) {
       inventory,
       updatedSkills,
       unlockedZone,
+      questProgress,
     }
   })
 
@@ -293,6 +299,8 @@ export async function executeCombatAction(character, skillId) {
     monsterDefeated: defeated,
     healedAmount: 0,
     result: battleResult,
+    quests: result.questProgress?.quests,
+    completedQuests: result.questProgress?.completedQuests ?? [],
     evasionChance,
     defeated,
     enemy: serializeMonster({ ...monster, health: remainingHealth }),

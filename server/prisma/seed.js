@@ -162,6 +162,80 @@ async function main() {
     }
   }
 
+  const questData = [
+    {
+      title: 'Derrota 3 Slimes musgosos',
+      description: 'Limpia el inicio del Sendero Esmeralda derrotando tres Slimes musgosos.',
+      questType: 'MAIN',
+      targetType: 'MONSTER_KILL',
+      targetMonsterId: monsterByKey.get(`${sendero.id}:1`).id,
+      targetZoneId: sendero.id,
+      requiredAmount: 3,
+      rewardGold: 45,
+      rewardExp: 45,
+      rewardItemId: items.get('Poción menor').id,
+      rewardItemQuantity: 2,
+      sortOrder: 1,
+      isMainQuest: true,
+    },
+    {
+      title: 'Derrota al Guardián de Raíz',
+      description: 'Alcanza el final del sendero y derrota a su guardián ancestral.',
+      questType: 'MAIN',
+      targetType: 'MONSTER_KILL',
+      targetMonsterId: monsterByKey.get(`${sendero.id}:4`).id,
+      targetZoneId: sendero.id,
+      requiredAmount: 1,
+      rewardGold: 100,
+      rewardExp: 90,
+      rewardItemId: items.get('Anillo del cazador').id,
+      rewardItemQuantity: 1,
+      sortOrder: 2,
+      isMainQuest: true,
+    },
+    {
+      title: 'Explora Mina Umbría',
+      description: 'Entra en la Mina Umbría después de conquistar el Sendero Esmeralda.',
+      questType: 'MAIN',
+      targetType: 'ZONE_ENTER',
+      targetMonsterId: null,
+      targetZoneId: mina.id,
+      requiredAmount: 1,
+      rewardGold: 55,
+      rewardExp: 55,
+      rewardItemId: items.get('Cristal verde').id,
+      rewardItemQuantity: 2,
+      sortOrder: 3,
+      isMainQuest: true,
+    },
+    {
+      title: 'Derrota 3 enemigos en Mina Umbría',
+      description: 'Reduce la amenaza de la mina derrotando tres enemigos dentro de la zona.',
+      questType: 'ZONE',
+      targetType: 'ZONE_KILL',
+      targetMonsterId: null,
+      targetZoneId: mina.id,
+      requiredAmount: 3,
+      rewardGold: 120,
+      rewardExp: 110,
+      rewardItemId: items.get('Amuleto umbrío').id,
+      rewardItemQuantity: 1,
+      sortOrder: 4,
+      isMainQuest: false,
+    },
+  ]
+
+  const quests = []
+  for (const quest of questData) {
+    quests.push(
+      await prisma.quest.upsert({
+        where: { title: quest.title },
+        update: quest,
+        create: quest,
+      }),
+    )
+  }
+
   const user = await prisma.user.upsert({
     where: { email: 'demo@mastersmon.local' },
     update: { name: 'Jugador demo' },
@@ -223,6 +297,25 @@ async function main() {
 
   const characters = await prisma.character.findMany()
   for (const currentCharacter of characters) {
+    for (const quest of quests) {
+      await prisma.characterQuest.upsert({
+        where: {
+          characterId_questId: {
+            characterId: currentCharacter.id,
+            questId: quest.id,
+          },
+        },
+        update:
+          currentCharacter.id === character.id
+            ? { progress: 0, completed: false, claimed: false }
+            : {},
+        create: {
+          characterId: currentCharacter.id,
+          questId: quest.id,
+        },
+      })
+    }
+
     for (const skill of skills) {
       await prisma.characterSkill.upsert({
         where: {
@@ -371,7 +464,7 @@ async function main() {
   }
 
   console.log(
-    'Seed completado: equipo, 4 habilidades, 2 zonas, 8 monstruos y drops.',
+    'Seed completado: equipo, habilidades, 4 misiones, 2 zonas y 8 monstruos.',
   )
 }
 

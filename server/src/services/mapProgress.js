@@ -1,5 +1,6 @@
 import { prisma } from '../lib/prisma.js'
 import { serializeMonster } from '../utils/serializers.js'
+import { shouldRepeatQuestMonster } from './quests.js'
 
 export async function ensureCharacterProgress(character, client = prisma) {
   const zones = await client.zone.findMany({ orderBy: { sortOrder: 'asc' } })
@@ -182,6 +183,16 @@ export async function advanceCharacterMonster(character) {
     error.status = 409
     error.zoneComplete = true
     throw error
+  }
+
+  if (
+    await shouldRepeatQuestMonster(character.id, state.monster.id)
+  ) {
+    await prisma.characterProgress.update({
+      where: { id: state.progress.id },
+      data: { currentMonsterHealth: state.monster.maxHealth },
+    })
+    return getCurrentMapState(character)
   }
 
   const nextMonster = state.zone.monsters.find(

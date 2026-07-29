@@ -41,5 +41,8 @@ export const registerUser = (data) => api.post('/auth/register', data)
 export const loginUser = (data) => api.post('/auth/login', data)
 export const getCurrentUser = () => api.get('/auth/me')
 export const restCharacter = () => api.post('/character/rest')
+export const getQuests = () => api.get('/quests')
+export const claimQuest = (characterQuestId) =>
+  api.post('/quests/claim', { characterQuestId })
 
 export default api

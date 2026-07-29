@@ -7,6 +7,7 @@ import {
   selectCharacterZone,
   serializeMapState,
 } from '../services/mapProgress.js'
+import { recordZoneEntered } from '../services/quests.js'
 
 const router = Router()
 
@@ -46,7 +47,15 @@ router.post('/select-zone', async (request, response, next) => {
       return response.status(400).json({ error: 'Selecciona una zona válida.' })
     }
     const state = await selectCharacterZone(character, request.body.zoneId)
-    response.json(serializeMapState(state))
+    const questProgress = await recordZoneEntered(
+      character,
+      request.body.zoneId,
+    )
+    response.json({
+      ...serializeMapState(state),
+      quests: questProgress.quests,
+      completedQuests: questProgress.completedQuests,
+    })
   } catch (error) {
     if (error.status) {
       return response.status(error.status).json({ error: error.message })

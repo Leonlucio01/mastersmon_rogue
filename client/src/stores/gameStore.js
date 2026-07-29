@@ -1,12 +1,14 @@
 import { create } from 'zustand'
 import {
   attackEnemy,
+  claimQuest as claimQuestRequest,
   equipItem as equipItemRequest,
   getCharacter,
   getEquipment,
   getHealth,
   getMapCurrent,
   getMapZones,
+  getQuests,
   getSkills,
   nextMapMonster,
   restCharacter,
@@ -123,6 +125,41 @@ const fallbackSkills = [
   { id: 'evade', name: 'Paso evasivo', description: 'Aumenta la evasión.', skillType: 'buff', damageMultiplier: 0, critBonus: 0, energyCost: 14, cooldownTurns: 3, cooldownRemaining: 0, requiredLevel: 1, icon: '◇', evasionBonus: 0.3, durationTurns: 2, activeTurns: 0 },
 ]
 
+const fallbackQuests = [
+  {
+    id: 'quest-slimes',
+    title: 'Derrota 3 Slimes musgosos',
+    description: 'Limpia el inicio del Sendero Esmeralda.',
+    requiredAmount: 3,
+    progress: 0,
+    completed: false,
+    claimed: false,
+    status: 'in_progress',
+    isMainQuest: true,
+    reward: {
+      gold: 45,
+      experience: 45,
+      item: { name: 'Poción menor', quantity: 2 },
+    },
+  },
+  {
+    id: 'quest-guardian',
+    title: 'Derrota al Guardián de Raíz',
+    description: 'Vence al guardián ancestral del sendero.',
+    requiredAmount: 1,
+    progress: 0,
+    completed: false,
+    claimed: false,
+    status: 'in_progress',
+    isMainQuest: true,
+    reward: {
+      gold: 100,
+      experience: 90,
+      item: { name: 'Anillo del cazador', quantity: 1 },
+    },
+  },
+]
+
 function combatUpdate(result, state) {
   const skillName = result.skillName ?? result.skill?.name ?? state.activeSkillName
   return {
@@ -162,6 +199,14 @@ function combatUpdate(result, state) {
       result: result.result,
       id: Date.now() + 2,
     },
+    quests: result.quests ?? state.quests,
+    questNotice: result.completedQuests?.length
+      ? {
+          message: `¡Misión completada: ${result.completedQuests[0].title}!`,
+          type: 'completed',
+          id: Date.now() + 3,
+        }
+      : state.questNotice,
     rewards: result.rewards,
     canAdvance: Boolean(result.canAdvance),
     zoneComplete: Boolean(result.zoneComplete),
@@ -192,6 +237,7 @@ export const useGameStore = create((set, get) => ({
   inventory: fallbackInventory,
   equipment: emptyEquipment,
   skills: fallbackSkills,
+  quests: fallbackQuests,
   activeEffects: [],
   enemy: fallbackEnemy,
   zones: fallbackZones,
@@ -213,6 +259,8 @@ export const useGameStore = create((set, get) => ({
   actionKey: 0,
   combatEvent: null,
   healEvent: null,
+  questNotice: null,
+  claimingQuestId: null,
   rewards: null,
   canAdvance: false,
   zoneComplete: false,
@@ -227,18 +275,20 @@ export const useGameStore = create((set, get) => ({
       lastCounter: null,
       combatEvent: null,
       healEvent: null,
+      questNotice: null,
       unlockNotice: '',
     })
 
     try {
       await getHealth()
-      const [characterResponse, equipmentResponse, zonesResponse, mapResponse, skillsResponse] =
+      const [characterResponse, equipmentResponse, zonesResponse, mapResponse, skillsResponse, questsResponse] =
         await Promise.all([
           getCharacter(),
           getEquipment(),
           getMapZones(),
           getMapCurrent(),
           getSkills(),
+          getQuests(),
         ])
       const current = mapResponse.data
 
@@ -247,6 +297,7 @@ export const useGameStore = create((set, get) => ({
         inventory: equipmentResponse.data.inventory,
         equipment: equipmentResponse.data.equipment,
         skills: skillsResponse.data.skills,
+        quests: questsResponse.data.quests,
         activeEffects: skillsResponse.data.activeEffects,
         zones: zonesResponse.data.zones,
         currentZone: current.zone,
@@ -266,6 +317,7 @@ export const useGameStore = create((set, get) => ({
         inventory: fallbackInventory,
         equipment: emptyEquipment,
         skills: fallbackSkills,
+        quests: fallbackQuests,
         activeEffects: [],
         enemy: fallbackEnemy,
         zones: fallbackZones,
@@ -453,6 +505,14 @@ export const useGameStore = create((set, get) => ({
         canAdvance: current.enemy.health <= 0 && !current.enemy.isBoss,
         zoneComplete: current.enemy.health <= 0 && current.enemy.isBoss,
         unlockNotice: '',
+        quests: current.quests ?? state.quests,
+        questNotice: current.completedQuests?.length
+          ? {
+              message: `¡Misión completada: ${current.completedQuests[0].title}!`,
+              type: 'completed',
+              id: Date.now(),
+            }
+          : state.questNotice,
         zones: state.zones.map((zone) => ({
           ...zone,
           selected: zone.id === current.zone.id,
@@ -466,6 +526,35 @@ export const useGameStore = create((set, get) => ({
       })
     } finally {
       set({ isSelectingZone: false })
+    }
+  },
+
+  claimQuest: async (characterQuestId) => {
+    if (get().claimingQuestId) return
+    set({
+      claimingQuestId: characterQuestId,
+      message: 'Entregando la misión...',
+    })
+    try {
+      const response = await claimQuestRequest(characterQuestId)
+      set({
+        character: response.data.character,
+        inventory: response.data.inventory,
+        quests: response.data.quests,
+        questNotice: {
+          message: `Recompensa reclamada: +${response.data.rewards.gold} oro · +${response.data.rewards.experience} EXP`,
+          type: 'claimed',
+          id: Date.now(),
+        },
+        message: response.data.message,
+      })
+    } catch (error) {
+      set({
+        message:
+          error.response?.data?.error ?? 'No fue posible reclamar la misión.',
+      })
+    } finally {
+      set({ claimingQuestId: null })
     }
   },
 
