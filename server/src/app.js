@@ -9,6 +9,7 @@ import equipmentRoutes from './routes/equipment.routes.js'
 import healthRoutes from './routes/health.routes.js'
 import inventoryRoutes from './routes/inventory.routes.js'
 import mapRoutes from './routes/map.routes.js'
+import offlineRoutes from './routes/offline.routes.js'
 import skillsRoutes from './routes/skills.routes.js'
 import questsRoutes from './routes/quests.routes.js'
 
@@ -31,6 +32,7 @@ app.use('/api/equipment', equipmentRoutes)
 app.use('/api/inventory', inventoryRoutes)
 app.use('/api/battle', battleRoutes)
 app.use('/api/map', mapRoutes)
+app.use('/api/offline', offlineRoutes)
 app.use('/api/skills', skillsRoutes)
 app.use('/api/quests', questsRoutes)
 
@@ -42,9 +44,10 @@ app.use((request, response) => {
 })
 
 app.use((error, _request, response, _next) => {
-  console.error(error)
-  response.status(500).json({
-    error: 'Error interno del servidor',
+  const status = Number(error.status) || 500
+  if (status >= 500) console.error(error)
+  response.status(status).json({
+    error: status >= 500 ? 'Error interno del servidor' : error.message,
   })
 })
 

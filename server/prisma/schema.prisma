@@ -55,6 +55,11 @@ enum QuestTargetType {
   ZONE_KILL
 }
 
+enum OfflineRewardStatus {
+  PENDING
+  CLAIMED
+}
+
 model User {
   id           String     @id @default(cuid())
   email        String     @unique
@@ -100,6 +105,8 @@ model Character {
   skills              CharacterSkill[]
   quests              CharacterQuest[]
   progress            CharacterProgress[]
+  offlineRewards      OfflineReward[]
+  lastSeenAt          DateTime
   createdAt           DateTime            @default(now())
   updatedAt           DateTime            @updatedAt
 }
@@ -279,6 +286,29 @@ model CharacterProgress {
 
   @@unique([characterId, zoneId])
   @@index([characterId, unlocked])
+}
+
+model OfflineReward {
+  id               String              @id @default(cuid())
+  characterId      String
+  character        Character           @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  pendingKey       String?             @unique
+  zoneName         String
+  offlineStartedAt DateTime
+  calculatedAt     DateTime
+  offlineSeconds   Int
+  attempts         Int
+  gold             Int
+  experience       Int
+  drops            Json
+  limitApplied     Boolean             @default(false)
+  status           OfflineRewardStatus @default(PENDING)
+  claimedAt        DateTime?
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+
+  @@index([characterId, status])
+  @@index([characterId, calculatedAt])
 }
 
 model BattleLog {

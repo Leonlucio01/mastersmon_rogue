@@ -44,5 +44,8 @@ export const restCharacter = () => api.post('/character/rest')
 export const getQuests = () => api.get('/quests')
 export const claimQuest = (characterQuestId) =>
   api.post('/quests/claim', { characterQuestId })
+export const getOfflineStatus = () => api.get('/offline/status')
+export const claimOfflineRewards = () => api.post('/offline/claim')
+export const touchOfflineActivity = () => api.post('/offline/touch')
 
 export default api

@@ -3,6 +3,7 @@ import Hud from '../components/Hud'
 import EquipmentPanel from '../components/EquipmentPanel'
 import Inventory from '../components/Inventory'
 import MapPanel from '../components/MapPanel'
+import OfflineRewards from '../components/OfflineRewards'
 import QuestPanel from '../components/QuestPanel'
 import SkillBar from '../components/SkillBar'
 import GameScene from '../game/GameScene'
@@ -12,6 +13,7 @@ import {
   playHealingSound,
   setCombatSoundEnabled,
 } from '../services/combatAudio'
+import { touchOfflineActivity } from '../services/api'
 import { useAuthStore } from '../stores/authStore'
 import { useGameStore } from '../stores/gameStore'
 
@@ -71,6 +73,10 @@ export default function Game() {
     combatEvent,
     healEvent,
     questNotice,
+    offlineStatus,
+    offlineModalOpen,
+    offlineNotice,
+    isClaimingOffline,
     claimingQuestId,
     rewards,
     canAdvance,
@@ -84,6 +90,10 @@ export default function Game() {
     advanceEnemy,
     selectZone,
     claimQuest,
+    refreshOfflineRewards,
+    closeOfflineModal,
+    openOfflineModal,
+    claimOfflineRewards,
     equipItem,
     unequipItem,
   } = useGameStore()
@@ -101,6 +111,33 @@ export default function Game() {
   useEffect(() => {
     if (healEvent) playHealingSound()
   }, [healEvent])
+
+  useEffect(() => {
+    if (!serverOnline) return undefined
+
+    const touchActivity = () => {
+      touchOfflineActivity().catch(() => {})
+    }
+    const handleVisibility = () => {
+      if (document.hidden) {
+        touchActivity()
+      } else {
+        refreshOfflineRewards()
+      }
+    }
+    const intervalId = window.setInterval(() => {
+      if (!document.hidden) touchActivity()
+    }, 60_000)
+
+    document.addEventListener('visibilitychange', handleVisibility)
+    window.addEventListener('pagehide', touchActivity)
+
+    return () => {
+      window.clearInterval(intervalId)
+      document.removeEventListener('visibilitychange', handleVisibility)
+      window.removeEventListener('pagehide', touchActivity)
+    }
+  }, [refreshOfflineRewards, serverOnline])
 
   const enemyDefeated = enemy.health <= 0
   const evasiveActive = activeEffects.some(
@@ -134,6 +171,16 @@ export default function Game() {
         >
           <span>✦</span>
           {questNotice.message}
+        </div>
+      )}
+
+      {offlineNotice && (
+        <div
+          key={offlineNotice.id}
+          className="quest-notice quest-notice--claimed"
+        >
+          <span>☾</span>
+          {offlineNotice.message}
         </div>
       )}
 
@@ -324,6 +371,14 @@ export default function Game() {
         </div>
 
         <div className="side-column">
+          <OfflineRewards
+            status={offlineStatus}
+            isOpen={offlineModalOpen}
+            isClaiming={isClaimingOffline}
+            onClaim={claimOfflineRewards}
+            onClose={closeOfflineModal}
+            onOpen={openOfflineModal}
+          />
           <MapPanel
             zones={zones}
             currentZoneId={currentZone.id}

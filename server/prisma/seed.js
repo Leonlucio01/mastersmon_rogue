@@ -35,6 +35,7 @@ async function upsertMonster(zoneId, data) {
 }
 
 async function main() {
+  const seedTime = new Date()
   const sendero = await upsertZone({
     name: 'Sendero Esmeralda',
     description: 'Un antiguo sendero cubierto de musgo y criaturas pequeñas.',
@@ -259,6 +260,7 @@ async function main() {
       maxHealth: 110,
       energy: 80,
       maxEnergy: 80,
+      lastSeenAt: seedTime,
       zoneId: sendero.id,
       currentMonsterOrder: 1,
       baseAttack: 12,
@@ -285,6 +287,7 @@ async function main() {
       maxHealth: 110,
       energy: 80,
       maxEnergy: 80,
+      lastSeenAt: seedTime,
       baseAttack: 12,
       baseDefense: 4,
       baseMaxHealth: 110,
@@ -396,6 +399,10 @@ async function main() {
     ['Poción menor', 2],
     ['Espada de aprendiz', 1],
   ]
+
+  await prisma.offlineReward.deleteMany({
+    where: { characterId: character.id },
+  })
 
   await prisma.inventoryItem.deleteMany({
     where: {

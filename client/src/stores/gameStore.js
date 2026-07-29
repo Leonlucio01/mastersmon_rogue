@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import {
   attackEnemy,
+  claimOfflineRewards as claimOfflineRewardsRequest,
   claimQuest as claimQuestRequest,
   equipItem as equipItemRequest,
   getCharacter,
@@ -8,6 +9,7 @@ import {
   getHealth,
   getMapCurrent,
   getMapZones,
+  getOfflineStatus,
   getQuests,
   getSkills,
   nextMapMonster,
@@ -159,6 +161,24 @@ const fallbackQuests = [
   },
 ]
 
+const emptyOfflineStatus = {
+  id: null,
+  hasRewards: false,
+  zoneName: null,
+  offlineSeconds: 0,
+  attempts: 0,
+  gold: 0,
+  experience: 0,
+  drops: [],
+  limitApplied: false,
+  defeated: false,
+  calculatedAt: null,
+  lastSeenAt: null,
+  maxOfflineSeconds: 14400,
+  maxOfflineHours: 4,
+  attemptIntervalSeconds: 120,
+}
+
 function combatUpdate(result, state) {
   const skillName = result.skillName ?? result.skill?.name ?? state.activeSkillName
   return {
@@ -259,6 +279,10 @@ export const useGameStore = create((set, get) => ({
   combatEvent: null,
   healEvent: null,
   questNotice: null,
+  offlineStatus: emptyOfflineStatus,
+  offlineModalOpen: false,
+  offlineNotice: null,
+  isClaimingOffline: false,
   claimingQuestId: null,
   rewards: null,
   canAdvance: false,
@@ -275,12 +299,13 @@ export const useGameStore = create((set, get) => ({
       combatEvent: null,
       healEvent: null,
       questNotice: null,
+      offlineNotice: null,
       unlockNotice: '',
     })
 
     try {
       await getHealth()
-      const [characterResponse, equipmentResponse, zonesResponse, mapResponse, skillsResponse, questsResponse] =
+      const [characterResponse, equipmentResponse, zonesResponse, mapResponse, skillsResponse, questsResponse, offlineResponse] =
         await Promise.all([
           getCharacter(),
           getEquipment(),
@@ -288,6 +313,7 @@ export const useGameStore = create((set, get) => ({
           getMapCurrent(),
           getSkills(),
           getQuests(),
+          getOfflineStatus().catch(() => ({ data: emptyOfflineStatus })),
         ])
       const current = mapResponse.data
 
@@ -297,6 +323,8 @@ export const useGameStore = create((set, get) => ({
         equipment: equipmentResponse.data.equipment,
         skills: skillsResponse.data.skills,
         quests: questsResponse.data.quests,
+        offlineStatus: offlineResponse.data,
+        offlineModalOpen: offlineResponse.data.hasRewards,
         activeEffects: skillsResponse.data.activeEffects,
         zones: zonesResponse.data.zones,
         currentZone: current.zone,
@@ -317,6 +345,8 @@ export const useGameStore = create((set, get) => ({
         equipment: emptyEquipment,
         skills: fallbackSkills,
         quests: fallbackQuests,
+        offlineStatus: emptyOfflineStatus,
+        offlineModalOpen: false,
         activeEffects: [],
         enemy: fallbackEnemy,
         zones: fallbackZones,
@@ -329,6 +359,54 @@ export const useGameStore = create((set, get) => ({
       })
     } finally {
       set({ isLoading: false })
+    }
+  },
+
+  refreshOfflineRewards: async () => {
+    if (!get().serverOnline) return
+    try {
+      const response = await getOfflineStatus()
+      set((state) => ({
+        offlineStatus: response.data,
+        offlineModalOpen:
+          response.data.hasRewards && !state.offlineStatus.hasRewards
+            ? true
+            : state.offlineModalOpen,
+      }))
+    } catch {
+      // El resto del juego debe seguir disponible si falla esta consulta auxiliar.
+    }
+  },
+
+  closeOfflineModal: () => set({ offlineModalOpen: false }),
+  openOfflineModal: () => {
+    if (get().offlineStatus.hasRewards) set({ offlineModalOpen: true })
+  },
+
+  claimOfflineRewards: async () => {
+    if (get().isClaimingOffline) return
+    set({ isClaimingOffline: true })
+    try {
+      const response = await claimOfflineRewardsRequest()
+      set({
+        character: response.data.character,
+        inventory: response.data.inventory,
+        offlineStatus: response.data.status,
+        offlineModalOpen: false,
+        offlineNotice: {
+          message: `Farmeo reclamado: +${response.data.claimed.gold} oro · +${response.data.claimed.experience} EXP`,
+          id: Date.now(),
+        },
+        message: response.data.message,
+      })
+    } catch (error) {
+      set({
+        message:
+          error.response?.data?.error ??
+          'No fue posible reclamar el farmeo offline.',
+      })
+    } finally {
+      set({ isClaimingOffline: false })
     }
   },
 

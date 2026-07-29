@@ -4,6 +4,7 @@ import jwt from 'jsonwebtoken'
 import { prisma } from '../lib/prisma.js'
 import { requireAuth } from '../middleware/auth.js'
 import { recalculateCharacterStats } from '../services/equipment.js'
+import { calculateOfflineStatus } from '../services/offlineRewards.js'
 import { serializeCharacter } from '../utils/serializers.js'
 
 const router = Router()
@@ -69,6 +70,7 @@ router.post('/register', async (request, response, next) => {
             maxHealth: 110,
             energy: 80,
             maxEnergy: 80,
+            lastSeenAt: new Date(),
             attack: 16,
             defense: 4,
             critRate: 0.08,
@@ -146,6 +148,8 @@ router.post('/login', async (request, response, next) => {
     if (!user || !validPassword) {
       return response.status(401).json({ error: 'Correo o contraseña incorrectos.' })
     }
+
+    await calculateOfflineStatus(user.character.id)
 
     response.json({
       token: createToken(user.id),
