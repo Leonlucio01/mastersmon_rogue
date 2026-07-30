@@ -258,6 +258,7 @@ function World({
   lastHit,
   lastCounter,
   evasiveActive,
+  autoFarmActive,
 }) {
   return (
     <>
@@ -283,6 +284,7 @@ function World({
         defeated={playerDefeated}
         evasiveActive={evasiveActive}
         lastCounter={lastCounter}
+        autoFarmActive={autoFarmActive}
       />
       <Enemy
         defeated={enemyDefeated}
@@ -321,6 +323,7 @@ export default function GameScene({
   lastHit,
   lastCounter,
   evasiveActive,
+  autoFarmActive,
 }) {
   return (
     <Canvas
@@ -341,6 +344,7 @@ export default function GameScene({
           lastHit={lastHit}
           lastCounter={lastCounter}
           evasiveActive={evasiveActive}
+          autoFarmActive={autoFarmActive}
         />
       </Suspense>
     </Canvas>

@@ -258,6 +258,8 @@ export async function claimCharacterQuest(character, characterQuestId) {
           ? {
               id: entry.quest.rewardItem.id,
               name: entry.quest.rewardItem.name,
+              rarity: entry.quest.rewardItem.rarity.toLowerCase(),
+              type: entry.quest.rewardItem.type.toLowerCase(),
               quantity: entry.quest.rewardItemQuantity,
             }
           : null,

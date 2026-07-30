@@ -1,4 +1,9 @@
 import { useState } from 'react'
+import {
+  COMPARISON_STATS,
+  formatComparisonValue,
+  getEquipmentComparison,
+} from '../utils/equipmentComparison'
 
 const typeLabels = {
   weapon: 'Arma',
@@ -26,6 +31,7 @@ function ShopItemCard({
   mode,
   gold,
   busyKey,
+  equipment,
   onBuy,
   onSell,
 }) {
@@ -37,6 +43,9 @@ function ShopItemCard({
     (buying
       ? gold < price || item.stock === 0
       : !item.canSell)
+  const comparison = buying
+    ? getEquipmentComparison(item, equipment)
+    : null
 
   return (
     <article className={`shop-item rarity-${item.rarity}`}>
@@ -53,6 +62,30 @@ function ShopItemCard({
         </div>
         {item.sellBlockedReason && (
           <small>{item.sellBlockedReason}</small>
+        )}
+        {comparison && (
+          <div
+            className={`shop-comparison ${comparison.recommended ? 'recommended' : 'lower'}`}
+          >
+            <strong>{comparison.label}</strong>
+            <small>
+              {comparison.slotEmpty
+                ? 'Slot vacío'
+                : `vs. ${comparison.equippedItem.displayName ?? comparison.equippedItem.name}`}
+            </small>
+            <div>
+              {COMPARISON_STATS.filter(
+                ([stat]) => comparison.deltas[stat] !== 0,
+              ).map(([stat, label]) => (
+                <span
+                  className={comparison.deltas[stat] > 0 ? 'positive' : 'negative'}
+                  key={stat}
+                >
+                  {label} {formatComparisonValue(stat, comparison.deltas[stat])}
+                </span>
+              ))}
+            </div>
+          </div>
         )}
       </div>
       <button
@@ -162,6 +195,7 @@ export default function ShopPanel({
                     mode={tab}
                     gold={shop.gold}
                     busyKey={busyKey}
+                    equipment={shop.equipment}
                     onBuy={onBuy}
                     onSell={onSell}
                   />

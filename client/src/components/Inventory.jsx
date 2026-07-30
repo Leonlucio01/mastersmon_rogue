@@ -29,16 +29,6 @@ const bonusLabels = {
   power: 'POD',
 }
 
-const equipableTypes = new Set([
-  'weapon',
-  'helmet',
-  'armor',
-  'boots',
-  'necklace',
-  'ring',
-  'artifact',
-])
-
 function ItemBonuses({ bonuses = {} }) {
   const active = Object.entries(bonuses).filter(([, value]) => value)
   if (!active.length) return <span className="no-bonuses">Sin bonus de equipo</span>
@@ -55,8 +45,46 @@ function ItemBonuses({ bonuses = {} }) {
   )
 }
 
+function ItemComparison({ comparison }) {
+  if (!comparison) return null
+  const visibleDeltas = COMPARISON_STATS.filter(
+    ([stat]) => comparison.deltas[stat] !== 0,
+  )
+
+  return (
+    <div
+      className={[
+        'item-comparison',
+        comparison.recommended ? 'recommended' : 'lower',
+      ].join(' ')}
+    >
+      <div>
+        <strong>{comparison.label}</strong>
+        <small>
+          {comparison.slotEmpty
+            ? 'Slot vacío'
+            : `Frente a ${comparison.equippedItem.displayName ?? comparison.equippedItem.name}`}
+        </small>
+      </div>
+      {visibleDeltas.length > 0 && (
+        <div className="comparison-values">
+          {visibleDeltas.map(([stat, label]) => (
+            <span
+              className={comparison.deltas[stat] > 0 ? 'positive' : 'negative'}
+              key={stat}
+            >
+              {label}: {formatComparisonValue(stat, comparison.deltas[stat])}
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function Inventory({
   items,
+  equipment,
   onEquip,
   onUnequip,
   onUse,
@@ -76,9 +104,10 @@ export default function Inventory({
         {items.map((item) => {
           const itemType = item.itemType ?? item.type?.toLowerCase()
           const rarity = item.rarity ?? 'common'
-          const equipable = equipableTypes.has(itemType)
+          const equipable = EQUIPABLE_TYPES.has(itemType)
           const consumable = itemType === 'consumable'
           const isUpdating = updatingItemId === item.inventoryItemId
+          const comparison = getEquipmentComparison(item, equipment)
 
           return (
             <article className={`inventory-item rarity-${rarity}`} key={item.inventoryItemId ?? item.id}>
@@ -94,6 +123,7 @@ export default function Inventory({
                   {item.equipped && <em>Equipado</em>}
                 </div>
                 <ItemBonuses bonuses={item.bonuses} />
+                <ItemComparison comparison={comparison} />
               </div>
               {(equipable || consumable) && (
                 <button
@@ -122,3 +152,9 @@ export default function Inventory({
     </aside>
   )
 }
+import {
+  COMPARISON_STATS,
+  EQUIPABLE_TYPES,
+  formatComparisonValue,
+  getEquipmentComparison,
+} from '../utils/equipmentComparison'

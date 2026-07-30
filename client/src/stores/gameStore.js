@@ -16,6 +16,7 @@ import {
   getShop,
   getUpgrade,
   nextMapMonster,
+  replayMapZone,
   restCharacter,
   selectMapZone,
   sellShopItem as sellShopItemRequest,
@@ -192,6 +193,7 @@ const emptyShop = {
   gold: fallbackCharacter.gold,
   items: [],
   sellableInventory: [],
+  equipment: emptyEquipment,
 }
 
 const emptyUpgrade = {
@@ -202,6 +204,35 @@ const emptyUpgrade = {
 
 function combatUpdate(result, state) {
   const skillName = result.skillName ?? result.skill?.name ?? state.activeSkillName
+  const droppedItem = result.droppedItem ?? result.rewards?.droppedItem ?? null
+  const newLogEntries = [
+    {
+      type: 'combat',
+      text: result.message,
+      id: Date.now() + 10,
+    },
+    ...(result.energyRecovered > 0
+      ? [{
+          type: 'energy',
+          text: `Recuperaste +${result.energyRecovered} de energía`,
+          id: Date.now() + 11,
+        }]
+      : []),
+    ...(droppedItem
+      ? [{
+          type: droppedItem.bossDrop ? 'boss-drop' : 'drop',
+          text: `${droppedItem.bossDrop ? 'Botín de jefe obtenido' : 'Encontraste'}: ${droppedItem.name} ×${droppedItem.quantity ?? 1}`,
+          id: Date.now() + 12,
+        }]
+      : []),
+    ...(result.rewards?.reduced
+      ? [{
+          type: 'reduced',
+          text: 'Boss repetido: recompensa reducida',
+          id: Date.now() + 13,
+        }]
+      : []),
+  ]
   return {
     enemy: result.enemy,
     character: result.character ?? state.character,
@@ -240,6 +271,13 @@ function combatUpdate(result, state) {
       id: Date.now() + 2,
     },
     quests: result.quests ?? state.quests,
+    dropNotice: droppedItem
+      ? {
+          ...droppedItem,
+          id: Date.now() + 4,
+        }
+      : null,
+    combatLog: [...state.combatLog, ...newLogEntries].slice(-5),
     questNotice: result.completedQuests?.length
       ? {
           message: `¡Misión completada: ${result.completedQuests[0].title}!`,
@@ -259,10 +297,12 @@ function combatUpdate(result, state) {
             result.unlockedZone && zone.id === result.unlockedZone.id
               ? { ...zone, unlocked: true, available: true }
               : zone.id === state.currentZone.id && result.zoneComplete
-                ? { ...zone, completed: true }
+                ? { ...zone, completed: true, replaying: false }
                 : zone,
           )
         : state.zones,
+    allContentCompleted:
+      result.allContentCompleted ?? state.allContentCompleted,
     impactKey: state.impactKey + 1,
     persistence: result.persistence,
     message: result.wasCritical
@@ -289,6 +329,7 @@ export const useGameStore = create((set, get) => ({
   isAttacking: false,
   isChangingEnemy: false,
   isSelectingZone: false,
+  replayingZoneId: null,
   isResting: false,
   updatingItemId: null,
   message: 'Preparando la expedición...',
@@ -299,6 +340,8 @@ export const useGameStore = create((set, get) => ({
   actionKey: 0,
   combatEvent: null,
   healEvent: null,
+  dropNotice: null,
+  combatLog: [],
   questNotice: null,
   offlineStatus: emptyOfflineStatus,
   offlineModalOpen: false,
@@ -318,6 +361,7 @@ export const useGameStore = create((set, get) => ({
   rewards: null,
   canAdvance: false,
   zoneComplete: false,
+  allContentCompleted: false,
   unlockNotice: '',
   impactKey: 0,
 
@@ -329,6 +373,8 @@ export const useGameStore = create((set, get) => ({
       lastCounter: null,
       combatEvent: null,
       healEvent: null,
+      dropNotice: null,
+      combatLog: [],
       questNotice: null,
       offlineNotice: null,
       shopNotice: null,
@@ -366,6 +412,10 @@ export const useGameStore = create((set, get) => ({
         persistence: current.persistence,
         canAdvance: current.enemy.health <= 0 && !current.enemy.isBoss,
         zoneComplete: current.enemy.health <= 0 && current.enemy.isBoss,
+        allContentCompleted: Boolean(
+          zonesResponse.data.allContentCompleted ??
+            current.allContentCompleted,
+        ),
         playerDefeated:
           (equipmentResponse.data.character ?? characterResponse.data).health <= 0,
         serverOnline: true,
@@ -387,6 +437,7 @@ export const useGameStore = create((set, get) => ({
         progress: fallbackProgress,
         persistence: 'mock',
         playerDefeated: false,
+        allContentCompleted: false,
         serverOnline: false,
         message: 'Modo local: inicia el backend para sincronizar la partida.',
       })
@@ -427,7 +478,12 @@ export const useGameStore = create((set, get) => ({
         offlineStatus: response.data.status,
         offlineModalOpen: false,
         offlineNotice: {
-          message: `Farmeo reclamado: +${response.data.claimed.gold} oro · +${response.data.claimed.experience} EXP`,
+          message: [
+            `Farmeo reclamado: +${response.data.claimed.gold} oro · +${response.data.claimed.experience} EXP`,
+            ...(response.data.claimed.drops ?? []).map(
+              (drop) => `${drop.name} ×${drop.quantity}`,
+            ),
+          ].join(' · '),
           id: Date.now(),
         },
         message: response.data.message,
@@ -563,7 +619,7 @@ export const useGameStore = create((set, get) => ({
 
   attack: async () => {
     const { enemy, isAttacking, character } = get()
-    if (isAttacking || enemy.health <= 0 || character.health <= 0) return
+    if (isAttacking || enemy.health <= 0 || character.health <= 0) return null
 
     set((state) => ({
       isAttacking: true,
@@ -571,6 +627,7 @@ export const useGameStore = create((set, get) => ({
       actionKey: state.actionKey + 1,
       message: 'El golpe atraviesa la bruma...',
       rewards: null,
+      dropNotice: null,
       unlockNotice: '',
     }))
 
@@ -578,12 +635,14 @@ export const useGameStore = create((set, get) => ({
       const response = await attackEnemy()
       const result = response.data
       set((state) => combatUpdate(result, state))
+      return result
     } catch (error) {
       set({
         message:
           error.response?.data?.error ??
           'El ataque falló. Comprueba la conexión con el servidor.',
       })
+      return null
     } finally {
       window.setTimeout(() => set({ isAttacking: false }), 580)
     }
@@ -609,6 +668,7 @@ export const useGameStore = create((set, get) => ({
       actionKey: state.actionKey + 1,
       message: `${skill.name} concentra su energía...`,
       rewards: null,
+      dropNotice: null,
       unlockNotice: '',
     }))
 
@@ -701,9 +761,12 @@ export const useGameStore = create((set, get) => ({
             ? {
                 ...zone,
                 currentMonsterOrder: current.progress.currentMonsterOrder,
+                replaying: Boolean(current.progress.replayMode),
               }
             : zone,
         ),
+        allContentCompleted:
+          current.allContentCompleted ?? state.allContentCompleted,
         persistence: current.persistence,
         message: `${current.enemy.name} emerge en el camino.`,
       }))
@@ -745,6 +808,8 @@ export const useGameStore = create((set, get) => ({
           ...zone,
           selected: zone.id === current.zone.id,
         })),
+        allContentCompleted:
+          current.allContentCompleted ?? state.allContentCompleted,
         message: `Has entrado en ${current.zone.name}.`,
       }))
     } catch (error) {
@@ -754,6 +819,40 @@ export const useGameStore = create((set, get) => ({
       })
     } finally {
       set({ isSelectingZone: false })
+    }
+  },
+
+  replayZone: async (zoneId) => {
+    if (get().replayingZoneId || get().isSelectingZone) return
+    set({
+      replayingZoneId: zoneId,
+      message: 'Preparando una nueva ruta de farmeo...',
+    })
+    try {
+      const response = await replayMapZone(zoneId)
+      const current = response.data
+      set({
+        currentZone: current.zone,
+        progress: current.progress,
+        enemy: current.enemy,
+        zones: current.zones,
+        allContentCompleted: Boolean(current.allContentCompleted),
+        rewards: null,
+        lastHit: null,
+        lastCounter: null,
+        canAdvance: false,
+        zoneComplete: false,
+        unlockNotice: '',
+        message: current.message,
+      })
+    } catch (error) {
+      set({
+        message:
+          error.response?.data?.error ??
+          'No fue posible reiniciar el farmeo de esa zona.',
+      })
+    } finally {
+      set({ replayingZoneId: null })
     }
   },
 
@@ -770,7 +869,12 @@ export const useGameStore = create((set, get) => ({
         inventory: response.data.inventory,
         quests: response.data.quests,
         questNotice: {
-          message: `Recompensa reclamada: +${response.data.rewards.gold} oro · +${response.data.rewards.experience} EXP`,
+          message: [
+            `Recompensa reclamada: +${response.data.rewards.gold} oro · +${response.data.rewards.experience} EXP`,
+            response.data.rewards.item
+              ? `${response.data.rewards.item.name} ×${response.data.rewards.item.quantity}`
+              : null,
+          ].filter(Boolean).join(' · '),
           type: 'claimed',
           id: Date.now(),
         },

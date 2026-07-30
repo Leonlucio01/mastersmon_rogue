@@ -1,4 +1,4 @@
-import { useAnimations, useFBX } from '@react-three/drei'
+import { useAnimations, useFBX, useGLTF } from '@react-three/drei'
 import { useFrame } from '@react-three/fiber'
 import {
   Component,
@@ -14,6 +14,14 @@ import { clone } from 'three/examples/jsm/utils/SkeletonUtils.js'
 export const ROGUE_SCALE = 0.012
 export const ROGUE_POSITION = [-1.7, 0.02, 0]
 export const ROGUE_ROTATION = [0, Math.PI / 2, 0]
+
+export const USE_CHIBI_ROGUE_MODEL = true
+export const CHIBI_ROGUE_SCALE = 0.92
+export const CHIBI_ROGUE_POSITION = [0, 0.02, 0]
+export const CHIBI_ROGUE_ROTATION = [0, Math.PI / 2, 0]
+
+const CHIBI_ROGUE_MODEL_URL =
+  '/assets/models/characters/chibi_rogue/chibi_rogue_base.glb'
 
 const ROGUE_MODELS = {
   idle: '/assets/models/characters/rogue/rogue%20fbx/rogue_idle.fbx',
@@ -36,8 +44,9 @@ function actionType(skillName = '') {
   return 'basic'
 }
 
-function GeometricRogue({ defeated, evasive }) {
+function GeometricRogue({ defeated, evasive, autoFarmActive }) {
   const bodyMaterial = useRef()
+  const body = useRef()
 
   useFrame(({ clock }) => {
     if (!bodyMaterial.current) return
@@ -46,11 +55,18 @@ function GeometricRogue({ defeated, evasive }) {
       : defeated
         ? 0.55
         : 1
+    if (body.current && autoFarmActive && !defeated) {
+      body.current.rotation.z = Math.sin(clock.elapsedTime * 3.8) * 0.035
+      body.current.scale.y = 1 + Math.sin(clock.elapsedTime * 5.2) * 0.025
+    } else if (body.current) {
+      body.current.rotation.z = 0
+      body.current.scale.y = 1
+    }
   })
 
   return (
     <group>
-      <mesh castShadow position={[0, 0.85, 0]}>
+      <mesh ref={body} castShadow position={[0, 0.85, 0]}>
         <capsuleGeometry args={[0.36, 0.8, 8, 18]} />
         <meshStandardMaterial
           ref={bodyMaterial}
@@ -83,6 +99,151 @@ function GeometricRogue({ defeated, evasive }) {
           </mesh>
         </>
       )}
+    </group>
+  )
+}
+
+function ChibiRogueModel({
+  state,
+  actionKey,
+  evasive,
+  autoFarmActive,
+}) {
+  const { scene } = useGLTF(CHIBI_ROGUE_MODEL_URL)
+  const visual = useRef()
+  const actionTime = useRef(0)
+  const { model, materials } = useMemo(() => {
+    const instance = scene.clone(true)
+    const clonedMaterials = []
+
+    instance.traverse((object) => {
+      if (!object.isMesh) return
+      object.frustumCulled = false
+      object.castShadow = true
+      object.receiveShadow = true
+      const sourceMaterials = Array.isArray(object.material)
+        ? object.material
+        : [object.material]
+      const copies = sourceMaterials.map((material) => {
+        const copy = material.clone()
+        copy.userData.baseOpacity = copy.opacity
+        clonedMaterials.push(copy)
+        return copy
+      })
+      object.material = Array.isArray(object.material) ? copies : copies[0]
+    })
+
+    return { model: instance, materials: clonedMaterials }
+  }, [scene])
+
+  useEffect(() => {
+    actionTime.current = 0
+  }, [actionKey, state])
+
+  useFrame(({ clock }, delta) => {
+    if (!visual.current) return
+    actionTime.current += delta
+
+    const time = actionTime.current
+    const idleBob =
+      Math.sin(clock.elapsedTime * (autoFarmActive ? 4.2 : 2.7)) *
+      (autoFarmActive ? 0.045 : 0.025)
+    const idleBreath =
+      1 +
+      Math.sin(clock.elapsedTime * (autoFarmActive ? 4.8 : 3.1)) *
+        (autoFarmActive ? 0.022 : 0.012)
+    let offsetX = 0
+    let offsetY = idleBob
+    let offsetZ = 0
+    let rotationX = 0
+    let rotationY = 0
+    let rotationZ = 0
+    let scaleX = idleBreath
+    let scaleY = idleBreath
+    let scaleZ = idleBreath
+    let opacity = 1
+
+    if (state === 'idle' && autoFarmActive) {
+      rotationZ = Math.sin(clock.elapsedTime * 3.4) * 0.035
+      rotationY = Math.sin(clock.elapsedTime * 2.1) * 0.045
+      scaleY *= 0.985
+      scaleX *= 1.012
+      scaleZ *= 1.012
+    }
+
+    if (state === 'basic') {
+      const progress = Math.min(1, time / 0.58)
+      rotationZ = -Math.sin(progress * Math.PI) * 0.18
+      rotationY = Math.sin(progress * Math.PI * 2) * 0.1
+      scaleY = 1 - Math.sin(progress * Math.PI) * 0.06
+    } else if (state === 'swift') {
+      const progress = Math.min(1, time / 0.48)
+      rotationZ = Math.sin(progress * Math.PI * 4) * 0.13
+      rotationY = Math.sin(progress * Math.PI * 4) * 0.2
+      offsetY += Math.abs(Math.sin(progress * Math.PI * 2)) * 0.08
+    } else if (state === 'shadow') {
+      const progress = Math.min(1, time / 0.72)
+      rotationY = Math.sin(progress * Math.PI) * 0.75
+      rotationZ = -Math.sin(progress * Math.PI) * 0.22
+      scaleX = 1 + Math.sin(progress * Math.PI) * 0.09
+      scaleZ = scaleX
+    } else if (state === 'evade') {
+      const progress = Math.min(1, time / 0.58)
+      offsetZ = Math.sin(progress * Math.PI) * 0.22
+      rotationY = Math.sin(progress * Math.PI * 2) * 0.42
+      rotationZ = Math.sin(progress * Math.PI) * 0.16
+      opacity = 0.5 + Math.sin(clock.elapsedTime * 15) * 0.14
+    } else if (state === 'hit') {
+      const progress = Math.min(1, time / 0.52)
+      offsetX = -Math.sin(progress * Math.PI) * 0.16
+      rotationZ = Math.sin(progress * Math.PI) * 0.2
+      rotationY = Math.sin(progress * Math.PI * 8) * 0.07
+      scaleY = 1 - Math.sin(progress * Math.PI) * 0.08
+    } else if (state === 'death') {
+      const progress = Math.min(1, time / 0.9)
+      const eased = THREE.MathUtils.smoothstep(progress, 0, 1)
+      offsetY = -eased * 0.36
+      rotationX = eased * 0.16
+      rotationZ = -eased * 0.72
+      scaleY = 1 - eased * 0.18
+      scaleX = 1 + eased * 0.08
+      scaleZ = scaleX
+      opacity = 1 - eased * 0.25
+    } else if (evasive) {
+      opacity = 0.62 + Math.sin(clock.elapsedTime * 12) * 0.12
+    }
+
+    visual.current.position.set(
+      CHIBI_ROGUE_POSITION[0] + offsetX,
+      CHIBI_ROGUE_POSITION[1] + offsetY,
+      CHIBI_ROGUE_POSITION[2] + offsetZ,
+    )
+    visual.current.rotation.set(
+      CHIBI_ROGUE_ROTATION[0] + rotationX,
+      CHIBI_ROGUE_ROTATION[1] + rotationY,
+      CHIBI_ROGUE_ROTATION[2] + rotationZ,
+    )
+    visual.current.scale.set(
+      CHIBI_ROGUE_SCALE * scaleX,
+      CHIBI_ROGUE_SCALE * scaleY,
+      CHIBI_ROGUE_SCALE * scaleZ,
+    )
+
+    materials.forEach((material) => {
+      const baseOpacity = material.userData.baseOpacity ?? 1
+      material.transparent = opacity < 1 || baseOpacity < 1
+      material.opacity = baseOpacity * opacity
+    })
+  })
+
+  return (
+    <group
+      ref={visual}
+      position={CHIBI_ROGUE_POSITION}
+      rotation={CHIBI_ROGUE_ROTATION}
+      scale={CHIBI_ROGUE_SCALE}
+    >
+      <primitive object={model} />
     </group>
   )
 }
@@ -169,13 +330,34 @@ class RogueModelBoundary extends Component {
   }
 
   componentDidCatch(error) {
-    console.warn('No se pudo cargar el modelo Rogue; se usa el fallback.', error)
+    console.warn('No se pudo cargar el modelo del Rogue; se usa el fallback.', error)
   }
 
   render() {
     if (this.state.failed) return this.props.fallback
     return this.props.children
   }
+}
+
+function FbxRogueFallback({
+  modelUrl,
+  state,
+  actionKey,
+  evasive,
+  fallback,
+}) {
+  return (
+    <RogueModelBoundary key={modelUrl} fallback={fallback}>
+      <Suspense fallback={fallback}>
+        <RogueModel
+          modelUrl={modelUrl}
+          state={state}
+          actionKey={actionKey}
+          evasive={evasive}
+        />
+      </Suspense>
+    </RogueModelBoundary>
+  )
 }
 
 export default function RogueActor({
@@ -185,6 +367,7 @@ export default function RogueActor({
   defeated,
   evasiveActive,
   lastCounter,
+  autoFarmActive,
 }) {
   const group = useRef()
   const auraMaterial = useRef()
@@ -270,7 +453,20 @@ export default function RogueActor({
   const animationKey =
     state === 'hit' ? lastCounter?.id : state === 'idle' ? state : actionKey
   const fallback = (
-    <GeometricRogue defeated={defeated} evasive={evasive} />
+    <GeometricRogue
+      defeated={defeated}
+      evasive={evasive}
+      autoFarmActive={autoFarmActive}
+    />
+  )
+  const fbxFallback = (
+    <FbxRogueFallback
+      modelUrl={modelUrl}
+      state={state}
+      actionKey={animationKey}
+      evasive={evasive}
+      fallback={fallback}
+    />
   )
 
   return (
@@ -300,16 +496,20 @@ export default function RogueActor({
         </>
       )}
 
-      <RogueModelBoundary key={modelUrl} fallback={fallback}>
-        <Suspense fallback={fallback}>
-          <RogueModel
-            modelUrl={modelUrl}
-            state={state}
-            actionKey={animationKey}
-            evasive={evasive}
-          />
-        </Suspense>
-      </RogueModelBoundary>
+      {USE_CHIBI_ROGUE_MODEL ? (
+        <RogueModelBoundary fallback={fbxFallback}>
+          <Suspense fallback={fallback}>
+            <ChibiRogueModel
+              state={state}
+              actionKey={animationKey}
+              evasive={evasive}
+              autoFarmActive={autoFarmActive}
+            />
+          </Suspense>
+        </RogueModelBoundary>
+      ) : (
+        fbxFallback
+      )}
     </group>
   )
 }

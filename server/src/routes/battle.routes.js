@@ -32,10 +32,17 @@ function mockAttack() {
         )
   mockCharacter.health = Math.max(0, mockCharacter.health - enemyDamage)
   const playerDefeated = mockCharacter.health === 0
+  let energyRecovered = 0
 
   if (defeated) {
     mockCharacter.gold += 12
     mockCharacter.experience += 18
+    const nextEnergy = Math.min(
+      mockCharacter.maxEnergy,
+      mockCharacter.energy + 8,
+    )
+    energyRecovered = nextEnergy - mockCharacter.energy
+    mockCharacter.energy = nextEnergy
   }
 
   return {
@@ -47,6 +54,14 @@ function mockAttack() {
     playerDefeated,
     monsterDefeated: defeated,
     healedAmount: 0,
+    energyRecovered,
+    currentEnergy: mockCharacter.energy,
+    maxEnergy: mockCharacter.maxEnergy,
+    droppedItem: null,
+    droppedItemName: null,
+    droppedItemRarity: null,
+    droppedItemType: null,
+    droppedItemQuantity: 0,
     result: playerDefeated
       ? 'PLAYER_DEFEATED'
       : defeated

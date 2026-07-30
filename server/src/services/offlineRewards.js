@@ -22,6 +22,8 @@ function normalizeDrops(drops) {
     .map((drop) => ({
       itemId: drop.itemId,
       name: drop.name,
+      rarity: drop.rarity ?? null,
+      type: drop.type ?? null,
       quantity: Math.floor(drop.quantity),
     }))
 }
@@ -34,6 +36,8 @@ function mergeDrops(currentDrops, generatedDrops) {
     byItem.set(drop.itemId, {
       itemId: drop.itemId,
       name: drop.name,
+      rarity: drop.rarity ?? current?.rarity ?? null,
+      type: drop.type ?? current?.type ?? null,
       quantity: (current?.quantity ?? 0) + drop.quantity,
     })
   }
@@ -167,6 +171,8 @@ function generateRewards(monsters, attempts) {
       drops.set(monster.dropItem.id, {
         itemId: monster.dropItem.id,
         name: monster.dropItem.name,
+        rarity: monster.dropItem.rarity.toLowerCase(),
+        type: monster.dropItem.type.toLowerCase(),
         quantity: (current?.quantity ?? 0) + 1,
       })
     }

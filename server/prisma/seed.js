@@ -54,6 +54,16 @@ async function main() {
     sortOrder: 2,
     initiallyUnlocked: false,
   })
+  const ruinas = await upsertZone({
+    name: 'Ruinas Carmesí',
+    description:
+      'Antiguas ruinas teñidas por energía roja, habitadas por no muertos y cultistas.',
+    level: 8,
+    requiredLevel: 8,
+    requiredPower: 65,
+    sortOrder: 3,
+    initiallyUnlocked: false,
+  })
 
   const itemData = [
     { name: 'Poción menor', description: 'Restaura 30 puntos de vida.', type: 'CONSUMABLE', rarity: 'COMMON', value: 18, power: 0, attackBonus: 0, defenseBonus: 0, healthBonus: 0, critBonus: 0, evasionBonus: 0, agilityBonus: 0, powerBonus: 0, healAmount: 30 },
@@ -68,6 +78,10 @@ async function main() {
     { name: 'Núcleo de raíz', description: 'Artefacto vivo extraído de un guardián ancestral.', type: 'ARTIFACT', rarity: 'EPIC', value: 220, power: 12, attackBonus: 4, defenseBonus: 4, healthBonus: 15, critBonus: 0, evasionBonus: 0, agilityBonus: 0, powerBonus: 12 },
     { name: 'Hierba lunar', description: 'Ingrediente alquímico de brillo tenue.', type: 'MATERIAL', rarity: 'COMMON', value: 5, power: 0, attackBonus: 0, defenseBonus: 0, healthBonus: 0, critBonus: 0, evasionBonus: 0, agilityBonus: 0, powerBonus: 0 },
     { name: 'Cristal verde', description: 'Fragmento imbuido con energía natural.', type: 'MATERIAL', rarity: 'RARE', value: 20, power: 0, attackBonus: 0, defenseBonus: 0, healthBonus: 0, critBonus: 0, evasionBonus: 0, agilityBonus: 0, powerBonus: 0 },
+    { name: 'Fragmento carmesí', description: 'Esquirla de las ruinas cargada con energía roja.', type: 'MATERIAL', rarity: 'RARE', value: 35, power: 0, attackBonus: 0, defenseBonus: 0, healthBonus: 0, critBonus: 0, evasionBonus: 0, agilityBonus: 0, powerBonus: 0 },
+    { name: 'Capa sombría', description: 'Manto de cultista que amortigua golpes y oculta el movimiento.', type: 'ARMOR', rarity: 'EPIC', value: 240, power: 12, attackBonus: 0, defenseBonus: 5, healthBonus: 35, critBonus: 0, evasionBonus: 0.03, agilityBonus: 2, powerBonus: 12 },
+    { name: 'Guantes del Duelista', description: 'Guanteletes rituales conservados como artefacto de combate.', type: 'ARTIFACT', rarity: 'EPIC', value: 280, power: 14, attackBonus: 7, defenseBonus: 2, healthBonus: 0, critBonus: 0.04, evasionBonus: 0, agilityBonus: 4, powerBonus: 14 },
+    { name: 'Amuleto Carmesí', description: 'Reliquia del Caballero Carmesí que concentra fuerza vital.', type: 'NECKLACE', rarity: 'LEGENDARY', value: 420, power: 18, attackBonus: 8, defenseBonus: 3, healthBonus: 35, critBonus: 0.06, evasionBonus: 0, agilityBonus: 2, powerBonus: 18 },
   ]
 
   const items = new Map()
@@ -86,6 +100,7 @@ async function main() {
     ['Armadura de cuero', 70, 18, sendero.id, 3],
     ['Botas ligeras', 85, 22, mina.id, 4],
     ['Anillo del cazador', 110, 30, mina.id, 5],
+    ['Núcleo de raíz', 260, 70, mina.id, 6],
   ]
   for (const [
     name,
@@ -195,6 +210,12 @@ async function main() {
       { name: 'Araña de cueva', species: 'Arácnido', level: 4, health: 88, maxHealth: 88, attack: 16, power: 16, defense: 6, rewardGold: 28, rewardExp: 34, dropChance: 0.45, dropItemId: items.get('Poción menor').id, sortOrder: 3, isBoss: false },
       { name: 'Gólem Umbrío', species: 'Constructo', level: 5, health: 135, maxHealth: 135, attack: 19, power: 19, defense: 9, rewardGold: 70, rewardExp: 68, dropChance: 1, dropItemId: items.get('Amuleto umbrío').id, sortOrder: 4, isBoss: true },
     ]],
+    [ruinas.id, [
+      { name: 'Esqueleto errante', species: 'No muerto', level: 8, health: 160, maxHealth: 160, attack: 23, power: 23, defense: 10, rewardGold: 38, rewardExp: 50, dropChance: 0.45, dropItemId: items.get('Fragmento carmesí').id, sortOrder: 1, isBoss: false },
+      { name: 'Cultista sombrío', species: 'Cultista', level: 8, health: 190, maxHealth: 190, attack: 27, power: 27, defense: 12, rewardGold: 48, rewardExp: 62, dropChance: 0.3, dropItemId: items.get('Capa sombría').id, sortOrder: 2, isBoss: false },
+      { name: 'Centinela de hueso', species: 'No muerto', level: 9, health: 230, maxHealth: 230, attack: 30, power: 30, defense: 15, rewardGold: 58, rewardExp: 75, dropChance: 0.3, dropItemId: items.get('Guantes del Duelista').id, sortOrder: 3, isBoss: false },
+      { name: 'Caballero Carmesí', species: 'Caballero maldito', level: 10, health: 340, maxHealth: 340, attack: 34, power: 34, defense: 18, rewardGold: 120, rewardExp: 140, dropChance: 1, dropItemId: items.get('Amuleto Carmesí').id, sortOrder: 4, isBoss: true },
+    ]],
   ]
 
   const monsterByKey = new Map()
@@ -265,6 +286,54 @@ async function main() {
       rewardItemQuantity: 1,
       sortOrder: 4,
       isMainQuest: false,
+    },
+    {
+      title: 'Explora Ruinas Carmesí',
+      description:
+        'Cruza el umbral de las ruinas después de conquistar la Mina Umbría.',
+      questType: 'MAIN',
+      targetType: 'ZONE_ENTER',
+      targetMonsterId: null,
+      targetZoneId: ruinas.id,
+      requiredAmount: 1,
+      rewardGold: 70,
+      rewardExp: 70,
+      rewardItemId: items.get('Fragmento carmesí').id,
+      rewardItemQuantity: 3,
+      sortOrder: 5,
+      isMainQuest: true,
+    },
+    {
+      title: 'Derrota 3 enemigos en Ruinas Carmesí',
+      description:
+        'Reduce la presencia de no muertos y cultistas dentro de las ruinas.',
+      questType: 'ZONE',
+      targetType: 'ZONE_KILL',
+      targetMonsterId: null,
+      targetZoneId: ruinas.id,
+      requiredAmount: 3,
+      rewardGold: 140,
+      rewardExp: 120,
+      rewardItemId: items.get('Capa sombría').id,
+      rewardItemQuantity: 1,
+      sortOrder: 6,
+      isMainQuest: false,
+    },
+    {
+      title: 'Derrota al Caballero Carmesí',
+      description:
+        'Llega al corazón de las ruinas y derrota al caballero maldito.',
+      questType: 'MAIN',
+      targetType: 'MONSTER_KILL',
+      targetMonsterId: monsterByKey.get(`${ruinas.id}:4`).id,
+      targetZoneId: ruinas.id,
+      requiredAmount: 1,
+      rewardGold: 220,
+      rewardExp: 180,
+      rewardItemId: items.get('Guantes del Duelista').id,
+      rewardItemQuantity: 1,
+      sortOrder: 7,
+      isMainQuest: true,
     },
   ]
 
@@ -429,6 +498,29 @@ async function main() {
         currentMonsterHealth: monsterByKey.get(`${mina.id}:1`).maxHealth,
       },
     })
+    await prisma.characterProgress.upsert({
+      where: {
+        characterId_zoneId: {
+          characterId: currentCharacter.id,
+          zoneId: ruinas.id,
+        },
+      },
+      update: currentCharacter.id === character.id
+        ? {
+            unlocked: false,
+            completed: false,
+            currentMonsterOrder: 1,
+            currentMonsterHealth: monsterByKey.get(`${ruinas.id}:1`).maxHealth,
+          }
+        : {},
+      create: {
+        characterId: currentCharacter.id,
+        zoneId: ruinas.id,
+        unlocked: false,
+        currentMonsterOrder: 1,
+        currentMonsterHealth: monsterByKey.get(`${ruinas.id}:1`).maxHealth,
+      },
+    })
   }
 
   const inventoryItems = [
@@ -503,7 +595,7 @@ async function main() {
   }
 
   console.log(
-    'Seed completado: tienda, equipo, habilidades, 4 misiones, 2 zonas y 8 monstruos.',
+    'Seed completado: tienda, equipo, habilidades, 7 misiones, 3 zonas y 12 monstruos.',
   )
 }
 

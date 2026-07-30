@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import AutoFarmControl from '../components/AutoFarmControl'
 import Hud from '../components/Hud'
 import EquipmentPanel from '../components/EquipmentPanel'
 import Inventory from '../components/Inventory'
@@ -8,7 +9,9 @@ import QuestPanel from '../components/QuestPanel'
 import ShopPanel from '../components/ShopPanel'
 import SkillBar from '../components/SkillBar'
 import UpgradePanel from '../components/UpgradePanel'
+import ExplorationScene from '../game/exploration/ExplorationScene'
 import GameScene from '../game/GameScene'
+import { useAutoFarm } from '../hooks/useAutoFarm'
 import {
   isCombatSoundEnabled,
   playCombatEvent,
@@ -38,10 +41,21 @@ function HealthBar({ value, max, tone = 'enemy' }) {
 function RewardBanner({ rewards }) {
   if (!rewards) return null
   return (
-    <div className="reward-banner">
-      <span className="eyebrow">Botín de victoria</span>
+    <div className={`reward-banner ${rewards.reduced ? 'reduced' : ''}`}>
+      <span className="eyebrow">
+        {rewards.reduced
+          ? 'Boss repetido · recompensa reducida'
+          : 'Botín de victoria'}
+      </span>
       <strong>+{rewards.gold} oro · +{rewards.experience} EXP</strong>
-      {rewards.droppedItem && <p>Objeto encontrado: {rewards.droppedItem.name}</p>}
+      {rewards.droppedItem && (
+        <p>
+          {rewards.droppedItem.bossDrop
+            ? 'Botín de jefe obtenido'
+            : 'Encontraste'}
+          : {rewards.droppedItem.name} ×{rewards.droppedItem.quantity ?? 1}
+        </p>
+      )}
     </div>
   )
 }
@@ -64,6 +78,7 @@ export default function Game() {
     isAttacking,
     isChangingEnemy,
     isSelectingZone,
+    replayingZoneId,
     isResting,
     updatingItemId,
     message,
@@ -74,6 +89,8 @@ export default function Game() {
     actionKey,
     combatEvent,
     healEvent,
+    dropNotice,
+    combatLog,
     questNotice,
     offlineStatus,
     offlineModalOpen,
@@ -93,14 +110,17 @@ export default function Game() {
     rewards,
     canAdvance,
     zoneComplete,
+    allContentCompleted,
     unlockNotice,
     impactKey,
     loadGame,
+    attack,
     useSkill,
     rest,
     useItem,
     advanceEnemy,
     selectZone,
+    replayZone,
     claimQuest,
     refreshOfflineRewards,
     closeOfflineModal,
@@ -116,12 +136,30 @@ export default function Game() {
     equipItem,
     unequipItem,
   } = useGameStore()
-  const { token, logout, openAuth } = useAuthStore()
+  const { token, logout, openAuth, authOpen } = useAuthStore()
   const [soundEnabled, setSoundEnabled] = useState(isCombatSoundEnabled)
+  const [viewMode, setViewMode] = useState('combat')
+  const [encounterName, setEncounterName] = useState(null)
+  const explorationPositions = useRef({})
+  const explorationCollected = useRef(new Set())
+  const previousToken = useRef(token)
+  const autoFarm = useAutoFarm({
+    attack,
+    character,
+    enemy,
+    isAttacking,
+  })
 
   useEffect(() => {
     loadGame()
   }, [loadGame, token])
+
+  useEffect(() => {
+    if (previousToken.current !== token) {
+      autoFarm.stop()
+      previousToken.current = token
+    }
+  }, [autoFarm.stop, token])
 
   useEffect(() => {
     playCombatEvent(combatEvent)
@@ -167,11 +205,56 @@ export default function Game() {
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .replace(/\s+/g, '-')
+  const energyLow = character.energy <= character.maxEnergy * 0.25
+  const energyEmpty = character.energy <= 0
+  const healthLow = character.health < character.maxHealth * 0.4
   const shouldRest =
-    playerDefeated || character.health < character.maxHealth * 0.5
+    playerDefeated ||
+    character.health < character.maxHealth * 0.5 ||
+    energyLow
+  const currentZoneMonsters =
+    zones.find((zone) => zone.id === currentZone.id)?.monsters ?? []
+  const explorationControlsLocked =
+    playerDefeated ||
+    shopOpen ||
+    upgradeOpen ||
+    offlineModalOpen ||
+    authOpen
   const sessionLogout = () => {
+    autoFarm.stop()
     logout()
     window.setTimeout(loadGame, 0)
+  }
+  const handleSelectZone = async (zoneId) => {
+    autoFarm.pauseForContext('zone')
+    setEncounterName(null)
+    setViewMode('combat')
+    await selectZone(zoneId)
+  }
+  const handleReplayZone = async (zoneId) => {
+    autoFarm.pauseForContext('replay')
+    setEncounterName(null)
+    setViewMode('combat')
+    await replayZone(zoneId)
+  }
+  const handleViewMode = (mode) => {
+    if (mode === 'explore') {
+      autoFarm.stop()
+      closeShop()
+      closeUpgrade()
+      closeOfflineModal()
+    }
+    setViewMode(mode)
+  }
+  const handleStartEncounter = (monster) => {
+    if (monster.name !== enemy.name || enemy.isBoss || enemy.health <= 0) return
+    setEncounterName(monster.name)
+    setViewMode('combat')
+  }
+  const handleReturnToMap = () => {
+    autoFarm.stop()
+    setEncounterName(null)
+    setViewMode('explore')
   }
 
   return (
@@ -223,7 +306,17 @@ export default function Game() {
         </div>
       )}
 
-      <section className="game-layout">
+      {autoFarm.notice && (
+        <div
+          key={autoFarm.notice.id}
+          className="quest-notice auto-farm-notice"
+        >
+          <span>⚔</span>
+          {autoFarm.notice.message}
+        </div>
+      )}
+
+      <section className={`game-layout ${viewMode === 'explore' ? 'exploration-layout' : ''}`}>
         <div className="world-card">
           <div className="world-meta">
             <div>
@@ -231,8 +324,27 @@ export default function Game() {
                 Zona {String(currentZone.order ?? 1).padStart(2, '0')} · {progress.label}
               </span>
               <h1>{currentZone.name}</h1>
+              {progress.replayMode && (
+                <span className="farming-mode-badge">Modo farmeo</span>
+              )}
             </div>
             <div className="world-status-actions">
+              <div className="game-mode-tabs" aria-label="Modo de juego">
+                <button
+                  type="button"
+                  className={viewMode === 'combat' ? 'active' : ''}
+                  onClick={() => handleViewMode('combat')}
+                >
+                  ⚔ Combate
+                </button>
+                <button
+                  type="button"
+                  className={viewMode === 'explore' ? 'active' : ''}
+                  onClick={() => handleViewMode('explore')}
+                >
+                  ◇ Explorar
+                </button>
+              </div>
               <button
                 className={`sound-toggle ${soundEnabled ? 'enabled' : ''}`}
                 type="button"
@@ -257,6 +369,23 @@ export default function Game() {
             </div>
           </div>
 
+          {viewMode === 'explore' ? (
+            <ExplorationScene
+              zone={currentZone}
+              progress={{ ...progress, monsters: currentZoneMonsters }}
+              enemy={enemy}
+              controlsLocked={explorationControlsLocked}
+              positionStore={explorationPositions}
+              collectedStore={explorationCollected}
+              canAdvance={canAdvance}
+              isChangingEnemy={isChangingEnemy}
+              playerDefeated={playerDefeated}
+              onStartCombat={handleStartEncounter}
+              onAdvanceEnemy={advanceEnemy}
+              onReturnToCombat={() => handleViewMode('combat')}
+            />
+          ) : (
+            <>
           <div
             className={[
               'scene-wrap',
@@ -265,6 +394,7 @@ export default function Game() {
               playerDefeated ? 'player-is-defeated' : '',
               enemyDefeated ? 'enemy-is-defeated' : '',
               evasiveActive ? 'evasive-active' : '',
+              autoFarm.status === 'active' ? 'auto-farm-active' : '',
             ].filter(Boolean).join(' ')}
           >
             <GameScene
@@ -278,6 +408,7 @@ export default function Game() {
               lastHit={lastHit}
               lastCounter={lastCounter}
               evasiveActive={evasiveActive}
+              autoFarmActive={autoFarm.status === 'active'}
             />
 
             {lastHit?.wasCritical && (
@@ -321,6 +452,15 @@ export default function Game() {
               </small>
             </div>
 
+            <AutoFarmControl
+              status={autoFarm.status}
+              activity={autoFarm.activity}
+              nextAttackSeconds={autoFarm.nextAttackSeconds}
+              countdownProgress={autoFarm.countdownProgress}
+              farmingMode={Boolean(progress.replayMode)}
+              onToggle={autoFarm.toggle}
+            />
+
             {lastHit && (
               <div key={lastHit.id} className={`floating-damage ${lastHit.wasCritical ? 'critical' : ''}`}>
                 {lastHit.wasCritical && <small>CRÍTICO</small>}
@@ -354,6 +494,25 @@ export default function Game() {
 
             <RewardBanner rewards={rewards} />
 
+            {dropNotice && (
+              <div
+                key={dropNotice.id}
+                className={`drop-notice rarity-${dropNotice.rarity ?? 'common'} ${dropNotice.bossDrop ? 'boss-drop' : ''}`}
+              >
+                <span>{dropNotice.bossDrop ? '✦' : '◇'}</span>
+                <div>
+                  <small>
+                    {dropNotice.bossDrop
+                      ? 'Botín de jefe obtenido'
+                      : 'Objeto encontrado'}
+                  </small>
+                  <strong>
+                    {dropNotice.name} ×{dropNotice.quantity ?? 1}
+                  </strong>
+                </div>
+              </div>
+            )}
+
             {playerDefeated && (
               <div className="defeat-overlay">
                 <span>☠</span>
@@ -364,7 +523,35 @@ export default function Game() {
 
             <div className="battle-controls">
               <p className={playerDefeated ? 'defeat-message' : ''}>{message}</p>
+              {(energyLow || healthLow) && (
+                <div className="combat-advice">
+                  {energyEmpty ? (
+                    <small className="energy-rest-hint">
+                      Sin energía para habilidades. Usa ataque básico o descansa.
+                    </small>
+                  ) : energyLow ? (
+                    <small className="energy-rest-hint">
+                      Energía baja · Descansa para recuperar energía.
+                    </small>
+                  ) : null}
+                  {healthLow && (
+                    <small className="health-rest-hint">
+                      Vida baja: considera usar una poción o descansar.
+                    </small>
+                  )}
+                </div>
+              )}
               <div className="battle-actions">
+                {enemyDefeated && encounterName && (
+                  <button
+                    className="rest-button return-map-button"
+                    type="button"
+                    onClick={handleReturnToMap}
+                  >
+                    <span>◇</span>
+                    Volver al mapa
+                  </button>
+                )}
                 {enemyDefeated && canAdvance ? (
                   <button
                     className="attack-button next-button"
@@ -380,7 +567,9 @@ export default function Game() {
                 ) : enemyDefeated && zoneComplete ? (
                   <div className="zone-complete-callout">
                     <span>✦</span>
-                    Zona completada · Selecciona la siguiente ruta en el mapa
+                    {progress.replayMode
+                      ? 'Farmeo completado · Puedes repetir otra zona'
+                      : 'Zona completada · Selecciona la siguiente ruta en el mapa'}
                   </div>
                 ) : null}
                 {shouldRest && (
@@ -395,6 +584,18 @@ export default function Game() {
                   </button>
                 )}
               </div>
+              {combatLog.length > 0 && (
+                <div className="combat-history" aria-label="Historial de combate">
+                  {combatLog.map((entry) => (
+                    <span
+                      className={`combat-history__${entry.type}`}
+                      key={entry.id}
+                    >
+                      {entry.text}
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
 
@@ -407,8 +608,11 @@ export default function Game() {
               onUse={useSkill}
             />
           )}
+            </>
+          )}
         </div>
 
+        {viewMode === 'combat' && (
         <div className="side-column">
           <ShopPanel
             shop={shop}
@@ -440,9 +644,12 @@ export default function Game() {
           <MapPanel
             zones={zones}
             currentZoneId={currentZone.id}
-            onSelect={selectZone}
+            onSelect={handleSelectZone}
+            onReplay={handleReplayZone}
             isSelecting={isSelectingZone}
+            replayingZoneId={replayingZoneId}
             unlockNotice={unlockNotice}
+            allContentCompleted={allContentCompleted}
           />
           <QuestPanel
             quests={quests}
@@ -456,18 +663,29 @@ export default function Game() {
           />
           <Inventory
             items={inventory}
+            equipment={equipment}
             onEquip={equipItem}
             onUnequip={unequipItem}
             onUse={useItem}
             updatingItemId={updatingItemId}
           />
           <section className="panel mission-card">
-            <span className="eyebrow">{enemy.isBoss ? 'Desafío de zona' : 'Objetivo activo'}</span>
+            <span className="eyebrow">
+              {progress.replayMode
+                ? 'Modo farmeo'
+                : enemy.isBoss
+                  ? 'Desafío de zona'
+                  : 'Objetivo activo'}
+            </span>
             <h2>{enemy.isBoss ? 'Combate contra el boss' : progress.label}</h2>
             <p>
-              {enemy.isBoss
-                ? `Derrota a ${enemy.name} para conquistar ${currentZone.name}.`
-                : `Derrota a ${enemy.name} y avanza hacia el boss.`}
+              {progress.replayMode
+                ? enemy.isBoss
+                  ? 'Boss repetido: recompensa reducida y sin botín único.'
+                  : 'Recompensas normales en enemigos de esta expedición.'
+                : enemy.isBoss
+                  ? `Derrota a ${enemy.name} para conquistar ${currentZone.name}.`
+                  : `Derrota a ${enemy.name} y avanza hacia el boss.`}
             </p>
             <div className="character-combat-stats">
               <span>ATQ <b>{character.attack ?? character.power}</b></span>
@@ -489,6 +707,7 @@ export default function Game() {
             </div>
           </section>
         </div>
+        )}
       </section>
     </main>
   )

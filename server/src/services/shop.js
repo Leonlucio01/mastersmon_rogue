@@ -20,6 +20,16 @@ function normalizeQuantity(value) {
 }
 
 function serializeShopItem(entry) {
+  const bonuses = {
+    attack: entry.item.attackBonus,
+    defense: entry.item.defenseBonus,
+    health: entry.item.healthBonus,
+    crit: entry.item.critBonus,
+    evasion: entry.item.evasionBonus,
+    agility: entry.item.agilityBonus,
+    power: entry.item.powerBonus,
+  }
+
   return {
     id: entry.id,
     itemId: entry.item.id,
@@ -38,15 +48,9 @@ function serializeShopItem(entry) {
         }
       : null,
     sortOrder: entry.sortOrder,
-    bonuses: {
-      attack: entry.item.attackBonus,
-      defense: entry.item.defenseBonus,
-      health: entry.item.healthBonus,
-      crit: entry.item.critBonus,
-      evasion: entry.item.evasionBonus,
-      agility: entry.item.agilityBonus,
-      power: entry.item.powerBonus,
-    },
+    upgradeLevel: 0,
+    baseBonuses: bonuses,
+    bonuses,
     healAmount: entry.item.healAmount,
   }
 }

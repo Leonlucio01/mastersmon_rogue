@@ -20,6 +20,9 @@ function combatError(message, status = 400, details = {}) {
   return Object.assign(new Error(message), { status, ...details })
 }
 
+export const NORMAL_ENERGY_RECOVERY = 8
+export const BOSS_ENERGY_RECOVERY = 20
+
 async function updateSkillTurns(characterSkills, usedCharacterSkill, transaction) {
   const updates = characterSkills.map((entry) => {
     const isUsed = entry.id === usedCharacterSkill.id
@@ -44,6 +47,8 @@ async function updateSkillTurns(characterSkills, usedCharacterSkill, transaction
 export async function executeCombatAction(character, skillId) {
   const state = await getCurrentMapState(character)
   const monster = state.monster
+  const isReplay = Boolean(state.progress.completed)
+  const isReplayBoss = isReplay && monster.isBoss
 
   if (character.health <= 0) {
     throw combatError(
@@ -115,8 +120,38 @@ export async function executeCombatAction(character, skillId) {
     state.progress.currentMonsterHealth - damage,
   )
   const defeated = !isBuff && remainingHealth === 0
+  const rewardGold =
+    defeated && isReplayBoss
+      ? Math.max(1, Math.floor(monster.rewardGold * 0.25))
+      : defeated
+        ? monster.rewardGold
+        : 0
+  const rewardExp =
+    defeated && isReplayBoss
+      ? Math.max(1, Math.floor(monster.rewardExp * 0.25))
+      : defeated
+        ? monster.rewardExp
+        : 0
+  const rewardPower = defeated && monster.isBoss && !isReplayBoss ? 2 : 0
+  const energyAfterCost = Math.max(
+    0,
+    character.energy - selected.skill.energyCost,
+  )
+  const requestedEnergyRecovery = defeated
+    ? monster.isBoss
+      ? BOSS_ENERGY_RECOVERY
+      : NORMAL_ENERGY_RECOVERY
+    : 0
+  const currentEnergy = Math.min(
+    character.maxEnergy,
+    energyAfterCost + requestedEnergyRecovery,
+  )
+  const energyRecovered = currentEnergy - energyAfterCost
   const droppedItem =
-    defeated && monster.dropItem && Math.random() < monster.dropChance
+    defeated &&
+    !isReplayBoss &&
+    monster.dropItem &&
+    Math.random() < monster.dropChance
       ? monster.dropItem
       : null
   const activeEvasionBonus = characterSkills.reduce(
@@ -161,8 +196,7 @@ export async function executeCombatAction(character, skillId) {
       },
     })
 
-    const nextExperience =
-      character.experience + (defeated ? monster.rewardExp : 0)
+    const nextExperience = character.experience + rewardExp
     const nextLevel = Math.max(
       character.level,
       Math.floor(nextExperience / 100) + 1,
@@ -170,14 +204,14 @@ export async function executeCombatAction(character, skillId) {
     await transaction.character.update({
       where: { id: character.id },
       data: {
-        energy: { decrement: selected.skill.energyCost },
+        energy: currentEnergy,
         health: remainingPlayerHealth,
         ...(defeated
           ? {
-              gold: { increment: monster.rewardGold },
-              experience: { increment: monster.rewardExp },
+              gold: { increment: rewardGold },
+              experience: { increment: rewardExp },
               level: nextLevel,
-              basePower: monster.isBoss ? { increment: 2 } : undefined,
+              basePower: rewardPower > 0 ? { increment: rewardPower } : undefined,
             }
           : {}),
       },
@@ -203,8 +237,8 @@ export async function executeCombatAction(character, skillId) {
         playerEvaded,
         playerDefeated,
         monsterDefeated: defeated,
-        goldReward: defeated ? monster.rewardGold : 0,
-        expReward: defeated ? monster.rewardExp : 0,
+        goldReward: rewardGold,
+        expReward: rewardExp,
         droppedItemId: droppedItem?.id,
         result: battleResult,
       },
@@ -221,7 +255,7 @@ export async function executeCombatAction(character, skillId) {
     )
 
     let unlockedZone = null
-    if (defeated && monster.isBoss) {
+    if (defeated && monster.isBoss && !isReplayBoss) {
       unlockedZone = await transaction.zone.findFirst({
         where: { sortOrder: { gt: state.zone.sortOrder } },
         orderBy: { sortOrder: 'asc' },
@@ -245,6 +279,12 @@ export async function executeCombatAction(character, skillId) {
       }
     }
 
+    const [availableZoneCount, completedZoneCount] = await Promise.all([
+      transaction.zone.count(),
+      transaction.characterProgress.count({
+        where: { characterId: character.id, completed: true },
+      }),
+    ])
     const inventory = await getCharacterInventory(character.id, transaction)
     return {
       progress,
@@ -253,6 +293,9 @@ export async function executeCombatAction(character, skillId) {
       updatedSkills,
       unlockedZone,
       questProgress,
+      allContentCompleted:
+        availableZoneCount > 0 &&
+        completedZoneCount >= availableZoneCount,
     }
   })
 
@@ -260,7 +303,9 @@ export async function executeCombatAction(character, skillId) {
     ? `${character.name} activa ${selected.skill.name}.`
     : defeated
       ? monster.isBoss
-        ? `${monster.name} cayó ante ${selected.skill.name}. La zona ha sido conquistada.`
+        ? isReplayBoss
+          ? `${monster.name} fue derrotado de nuevo con ${selected.skill.name}. El farmeo ha terminado.`
+          : `${monster.name} cayó ante ${selected.skill.name}. La zona ha sido conquistada.`
         : `${monster.name} ha sido derrotado con ${selected.skill.name}.`
       : `${character.name} usa ${selected.skill.name} contra ${monster.name}.`
   const counterMessage = defeated
@@ -270,7 +315,21 @@ export async function executeCombatAction(character, skillId) {
       : playerDefeated
         ? ` ${monster.name} inflige ${enemyDamage} de daño. Has sido derrotado.`
         : ` ${monster.name} contraataca e inflige ${enemyDamage} de daño.`
-  const message = `${actionMessage}${counterMessage}`
+  const energyMessage =
+    energyRecovered > 0
+      ? ` Recuperaste +${energyRecovered} de energía.`
+      : ''
+  const message = `${actionMessage}${counterMessage}${energyMessage}`
+  const serializedDrop = droppedItem
+    ? {
+        id: droppedItem.id,
+        name: droppedItem.name,
+        rarity: droppedItem.rarity.toLowerCase(),
+        type: droppedItem.type.toLowerCase(),
+        quantity: 1,
+        bossDrop: monster.isBoss,
+      }
+    : null
 
   return {
     skillName: selected.skill.name,
@@ -286,6 +345,14 @@ export async function executeCombatAction(character, skillId) {
     playerDefeated,
     monsterDefeated: defeated,
     healedAmount: 0,
+    energyRecovered,
+    currentEnergy: result.updatedCharacter.energy,
+    maxEnergy: result.updatedCharacter.maxEnergy,
+    droppedItem: serializedDrop,
+    droppedItemName: serializedDrop?.name ?? null,
+    droppedItemRarity: serializedDrop?.rarity ?? null,
+    droppedItemType: serializedDrop?.type ?? null,
+    droppedItemQuantity: serializedDrop?.quantity ?? 0,
     result: battleResult,
     quests: result.questProgress?.quests,
     completedQuests: result.questProgress?.completedQuests ?? [],
@@ -296,23 +363,26 @@ export async function executeCombatAction(character, skillId) {
     inventory: serializeInventory(result.inventory),
     rewards: defeated
       ? {
-          gold: monster.rewardGold,
-          experience: monster.rewardExp,
-          power: monster.isBoss ? 2 : 0,
-          droppedItem: droppedItem
-            ? { id: droppedItem.id, name: droppedItem.name }
-            : null,
+          gold: rewardGold,
+          experience: rewardExp,
+          power: rewardPower,
+          reduced: isReplayBoss,
+          droppedItem: serializedDrop,
         }
       : null,
     progress: {
       currentMonsterOrder: result.progress.currentMonsterOrder,
       totalMonsters: state.totalMonsters,
+      completed: result.progress.completed,
+      replayMode: isReplay,
       label: monster.isBoss
         ? 'Boss'
         : `Enemigo ${result.progress.currentMonsterOrder}/${state.totalMonsters}`,
     },
     canAdvance: defeated && !monster.isBoss,
     zoneComplete: defeated && monster.isBoss,
+    replayMode: isReplay,
+    allContentCompleted: Boolean(result.allContentCompleted),
     unlockedZone: result.unlockedZone
       ? { id: result.unlockedZone.id, name: result.unlockedZone.name }
       : null,

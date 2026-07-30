@@ -1,3 +1,8 @@
+import {
+  COMPARISON_STATS,
+  formatComparisonValue,
+} from '../utils/equipmentComparison'
+
 const slots = [
   ['weapon', 'Arma', '⚔'],
   ['helmet', 'Casco', '◆'],
@@ -7,6 +12,23 @@ const slots = [
   ['ring', 'Anillo', '○'],
   ['artifact', 'Artefacto', '✦'],
 ]
+
+function EquippedStats({ item }) {
+  const active = COMPARISON_STATS.filter(
+    ([stat]) => Number(item?.bonuses?.[stat] ?? 0) !== 0,
+  )
+  if (!active.length) return null
+
+  return (
+    <div className="equipped-stat-line">
+      {active.map(([stat, label]) => (
+        <span key={stat}>
+          {label} {formatComparisonValue(stat, item.bonuses[stat])}
+        </span>
+      ))}
+    </div>
+  )
+}
 
 export default function EquipmentPanel({ equipment, onUnequip, updatingItemId }) {
   return (
@@ -30,6 +52,7 @@ export default function EquipmentPanel({ equipment, onUnequip, updatingItemId })
               <div>
                 <small>{label}</small>
                 <strong>{item?.displayName ?? item?.name ?? 'Vacío'}</strong>
+                {item && <EquippedStats item={item} />}
               </div>
               {item && (
                 <button

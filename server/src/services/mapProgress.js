@@ -4,14 +4,16 @@ import { shouldRepeatQuestMonster } from './quests.js'
 
 export async function ensureCharacterProgress(character, client = prisma) {
   const zones = await client.zone.findMany({ orderBy: { sortOrder: 'asc' } })
-  const existing = await client.characterProgress.findMany({
+  const existingRows = await client.characterProgress.findMany({
     where: { characterId: character.id },
   })
-  const existingZoneIds = new Set(existing.map((progress) => progress.zoneId))
+  const progressByZone = new Map(
+    existingRows.map((progress) => [progress.zoneId, progress]),
+  )
 
   for (const zone of zones) {
-    if (!existingZoneIds.has(zone.id)) {
-      await client.characterProgress.create({
+    if (!progressByZone.has(zone.id)) {
+      const created = await client.characterProgress.create({
         data: {
           characterId: character.id,
           zoneId: zone.id,
@@ -19,6 +21,25 @@ export async function ensureCharacterProgress(character, client = prisma) {
           currentMonsterOrder: 1,
         },
       })
+      progressByZone.set(zone.id, created)
+    }
+  }
+
+  // Repara progresos antiguos cuando se agrega una zona después de que el
+  // personaje ya derrotó al boss anterior.
+  for (const [index, zone] of zones.entries()) {
+    const progress = progressByZone.get(zone.id)
+    const previousProgress =
+      index > 0 ? progressByZone.get(zones[index - 1].id) : null
+    const shouldBeUnlocked =
+      zone.initiallyUnlocked || Boolean(previousProgress?.completed)
+
+    if (shouldBeUnlocked && !progress.unlocked) {
+      const updated = await client.characterProgress.update({
+        where: { id: progress.id },
+        data: { unlocked: true },
+      })
+      progressByZone.set(zone.id, updated)
     }
   }
 }
@@ -29,11 +50,21 @@ export async function getCurrentMapState(character, client = prisma) {
     (character.zoneId &&
       (await client.zone.findUnique({
         where: { id: character.zoneId },
-        include: { monsters: { orderBy: { sortOrder: 'asc' } } },
+        include: {
+          monsters: {
+            include: { dropItem: true },
+            orderBy: { sortOrder: 'asc' },
+          },
+        },
       }))) ||
     (await client.zone.findFirst({
       where: { initiallyUnlocked: true },
-      include: { monsters: { orderBy: { sortOrder: 'asc' } } },
+      include: {
+        monsters: {
+          include: { dropItem: true },
+          orderBy: { sortOrder: 'asc' },
+        },
+      },
       orderBy: { sortOrder: 'asc' },
     }))
 
@@ -72,6 +103,13 @@ export async function getCurrentMapState(character, client = prisma) {
     })
   }
 
+  const [zoneCount, completedZoneCount] = await Promise.all([
+    client.zone.count(),
+    client.characterProgress.count({
+      where: { characterId: character.id, completed: true },
+    }),
+  ])
+
   return {
     zone,
     progress,
@@ -80,6 +118,8 @@ export async function getCurrentMapState(character, client = prisma) {
       health: progress.currentMonsterHealth,
     },
     totalMonsters: zone.monsters.length,
+    allContentCompleted:
+      zoneCount > 0 && completedZoneCount >= zoneCount,
   }
 }
 
@@ -116,6 +156,11 @@ export async function getZonesForCharacter(character, client = prisma) {
       unlocked: Boolean(progress?.unlocked),
       completed: Boolean(progress?.completed),
       selected: character.zoneId === zone.id,
+      replaying: Boolean(
+        progress?.completed &&
+          character.zoneId === zone.id &&
+          (progress.currentMonsterHealth ?? 0) > 0,
+      ),
       currentMonsterOrder: progress?.currentMonsterOrder ?? 1,
       totalMonsters: zone.monsters.length,
       meetsRequirements,
@@ -169,6 +214,73 @@ export async function selectCharacterZone(character, zoneId) {
   })
 
   return getCurrentMapState({ ...character, zoneId })
+}
+
+export async function replayCharacterZone(character, zoneId) {
+  await ensureCharacterProgress(character)
+  const zone = await prisma.zone.findUnique({
+    where: { id: zoneId },
+    include: { monsters: { orderBy: { sortOrder: 'asc' } } },
+  })
+  const progress = await prisma.characterProgress.findUnique({
+    where: {
+      characterId_zoneId: {
+        characterId: character.id,
+        zoneId,
+      },
+    },
+  })
+
+  if (!zone || !progress) {
+    const error = new Error('La zona seleccionada no existe.')
+    error.status = 404
+    throw error
+  }
+  if (!progress.unlocked || !progress.completed) {
+    const error = new Error(
+      'Solo puedes farmear una zona que ya hayas completado.',
+    )
+    error.status = 409
+    throw error
+  }
+  if (
+    character.level < zone.requiredLevel ||
+    character.power < zone.requiredPower
+  ) {
+    const error = new Error(
+      `Necesitas nivel ${zone.requiredLevel} y poder ${zone.requiredPower}.`,
+    )
+    error.status = 403
+    throw error
+  }
+
+  const firstMonster = zone.monsters.find((monster) => !monster.isBoss)
+  if (!firstMonster) {
+    const error = new Error('La zona no tiene enemigos normales para farmear.')
+    error.status = 409
+    throw error
+  }
+
+  const [, updatedCharacter] = await prisma.$transaction([
+    prisma.characterProgress.update({
+      where: { id: progress.id },
+      data: {
+        currentMonsterOrder: firstMonster.sortOrder,
+        currentMonsterHealth: firstMonster.maxHealth,
+        // La conquista es permanente; solo se reinicia la ruta de combate.
+        completed: true,
+      },
+    }),
+    prisma.character.update({
+      where: { id: character.id },
+      data: {
+        zoneId,
+        currentMonsterOrder: firstMonster.sortOrder,
+      },
+    }),
+  ])
+
+  return getCurrentMapState(updatedCharacter)
 }
 
 export async function advanceCharacterMonster(character) {
@@ -235,11 +347,16 @@ export function serializeMapState(state) {
       currentMonsterOrder: state.progress.currentMonsterOrder,
       totalMonsters: state.totalMonsters,
       completed: state.progress.completed,
+      replayMode: Boolean(
+        state.progress.completed &&
+          (state.progress.currentMonsterHealth ?? 0) > 0,
+      ),
       label: state.monster.isBoss
         ? 'Boss'
         : `Enemigo ${state.progress.currentMonsterOrder}/${state.totalMonsters}`,
     },
     enemy: serializeMonster(state.monster),
+    allContentCompleted: Boolean(state.allContentCompleted),
     persistence: 'database',
   }
 }
